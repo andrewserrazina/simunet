@@ -47,7 +47,21 @@ class Telemetry(Base):
     __table_args__ = (UniqueConstraint("flight_id", "k", name="uq_flight_k"),)
 
 def ensure_db():
-    if _engine is None:
+    try:
+        if not DATABASE_URL:
+            print("DB init: no DATABASE_URL set", flush=True)
+            return False
+        _engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+        global SessionLocal
+        SessionLocal = sessionmaker(bind=_engine)
+        Base.metadata.create_all(_engine)  # create tables
+        # sanity ping
+        with _engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        print("DB init: connected and tables ensured", flush=True)
+        return True
+    except Exception as e:
+        import traceback
+        print("DB init error:", e, flush=True)
+        traceback.print_exc()
         return False
-    Base.metadata.create_all(_engine)
-    return True
