@@ -1,7 +1,13 @@
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, RedirectResponse
+import os, json, uuid
+from datetime import datetime
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException, Query, Depends, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer  # if you’re using auth
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
+
 
 app=FastAPI()
 @app.get('/status')
