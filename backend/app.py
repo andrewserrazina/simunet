@@ -13,6 +13,16 @@ app=FastAPI()
 @app.get('/status')
 def s(): return {'ok':True,'db':False}
 
+# DB (Neon) if DATABASE_URL set; else JSON store
+DB_AVAILABLE = False
+DB_ERROR = None
+try:
+    import db
+    DB_AVAILABLE, DB_ERROR = db.ensure_db()
+except Exception as _e:
+    DB_AVAILABLE, DB_ERROR = False, str(_e)
+
+
 # Serve the frontend from the same container
 FRONTEND_DIR = os.getenv(
     "SIMUNET_FRONTEND_DIR",
