@@ -1,0 +1,107 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SimuNet • Play</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+html, body { height: 100%; margin: 0; background:#0b1020; color:#eaf2ff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+#app { display:flex; flex-direction:column; height:100%; }
+header { padding:12px 16px; border-bottom:1px solid #1c2540; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+label { font-size:14px; opacity:0.85; }
+input, button { background:#0f1430; border:1px solid #273469; color:#eaf2ff; padding:8px 10px; border-radius:10px; }
+button { cursor:pointer; }
+#map { flex:1 1 auto; }
+.leaflet-tile { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.95); }
+small.hint { opacity:.7; font-size:12px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <strong>SimuNet • Play</strong>
+    <label>API:</label>
+    <input id="api" placeholder="http://localhost:8000" style="min-width:260px" />
+    <label>Flight ID:</label>
+    <input id="flightId" placeholder="paste or create one" style="min-width:300px" />
+    <button id="btnSeed">Seed & Start</button>
+    <button id="btnLoad">Load & Animate</button>
+    <span id="status" style="margin-left:auto;font-size:12px;opacity:.8"></span>
+    <div style="width:100%"><small class="hint">Tip: You can pass <code>?api=https://your-api.onrender.com</code> in the URL.</small></div>
+  </header>
+  <div id="map"></div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const qsApi = new URLSearchParams(location.search).get('api');
+document.getElementById('api').value = qsApi || (location.origin.includes('localhost') || location.protocol==='file:' ? 'http://localhost:8000' : location.origin);
+
+const map = L.map('map', { zoomControl: true }).setView([39.5,-98.35], 4);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+
+const pathLine = L.polyline([], { weight: 3, opacity: 0.9 }).addTo(map);
+const marker = L.circleMarker([0,0], { radius: 6, weight: 2 }).addTo(map);
+
+function fitPath(points) {
+  if (!points.length) return;
+  const latlngs = points.map(p => [p.lat, p.lon]);
+  map.fitBounds(L.latLngBounds(latlngs), { padding: [20,20] });
+}
+
+async function apiFetch(api, path, opts) {
+  const r = await fetch(api.replace(/\/$/, '') + path, opts);
+  if (!r.ok) throw new Error((await r.text()) || ('HTTP ' + r.status));
+  return r.json();
+}
+
+function sleep(ms){ return new Promise(res=>setTimeout(res, ms)); }
+
+async function animate(points){
+  const latlngs = [];
+  for(const p of points){
+    const ll = [p.lat, p.lon];
+    latlngs.push(ll);
+    pathLine.setLatLngs(latlngs);
+    marker.setLatLng(ll);
+    await sleep(200);
+  }
+}
+
+document.getElementById('btnSeed').addEventListener('click', async ()=>{
+  const api = document.getElementById('api').value.trim();
+  const s = document.getElementById('status');
+  s.textContent = 'Seeding...';
+  try{
+    const seeded = await apiFetch(api, '/dev/reseed', { method:'POST' });
+    const jobId = seeded.job_id;
+    const started = await apiFetch(api, `/flights?assignment_id=${encodeURIComponent(jobId)}&seq=1&mode=truck`, { method:'POST' });
+    document.getElementById('flightId').value = started.flight_id;
+    s.textContent = `Created job ${jobId} → flight ${started.flight_id}`;
+  }catch(err){
+    console.error(err);
+    s.textContent = 'Error seeding/starting.';
+  }
+});
+
+document.getElementById('btnLoad').addEventListener('click', async ()=>{
+  const api = document.getElementById('api').value.trim();
+  const fid = document.getElementById('flightId').value.trim();
+  const s = document.getElementById('status');
+  if(!fid){ alert('Need a flight_id. Use Seed & Start or paste one.'); return; }
+  s.textContent = 'Loading telemetry...';
+  try{
+    const data = await apiFetch(api, `/telemetry/${encodeURIComponent(fid)}`);
+    const pts = data.points || [];
+    if(!pts.length){ s.textContent = 'No telemetry found.'; return; }
+    fitPath(pts);
+    await animate(pts);
+    s.textContent = `Rendered ${pts.length} points.`;
+  }catch(err){
+    console.error(err);
+    s.textContent = 'Error loading telemetry.';
+  }
+});
+</script>
+</body>
+</html>

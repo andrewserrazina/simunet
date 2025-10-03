@@ -1,0 +1,13 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - SIMUNET_CORS_ORIGINS=${SIMUNET_CORS_ORIGINS:-http://localhost:5173,http://localhost:8000}
+      - SIMUNET_SAVE_FILE=${SIMUNET_SAVE_FILE:-backend/data/state.json}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app/backend
