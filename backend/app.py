@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.responses import FileResponse
 
 app=FastAPI()
 @app.get('/status')
