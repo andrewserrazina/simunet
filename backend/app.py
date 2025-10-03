@@ -7,6 +7,48 @@ app=FastAPI()
 @app.get('/status')
 def s(): return {'ok':True,'db':False}
 
+# Where the built/static frontend lives (we’ll copy it into the container at /app/frontend)
+FRONTEND_DIR = os.getenv(
+    "SIMUNET_FRONTEND_DIR",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
+)
+
+# Serve /assets/* straight from disk (icons, images, etc.)
+assets_dir = os.path.join(FRONTEND_DIR, "assets")
+if os.path.isdir(assets_dir):
+    app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+@app.get("/", include_in_schema=False)
+def serve_index():
+    index = os.path.join(FRONTEND_DIR, "index.html")
+    if not os.path.exists(index):
+        # still show something useful if the file isn’t there yet
+        return {"ok": True, "db": DB_AVAILABLE, "hint": "Place frontend in /app/frontend or set SIMUNET_FRONTEND_DIR"}
+    return FileResponse(index)
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    path = os.path.join(FRONTEND_DIR, "favicon.ico")
+    if os.path.exists(path):
+        return FileResponse(path)
+    raise HTTPException(status_code=404)
+@app.get("/{full_path:path}", include_in_schema=False)
+def spa_fallback(full_path: str):
+    # Don't intercept known API/doc routes
+    first = (full_path or "").split("/", 1)[0]
+    if first in {"status", "dev", "flights", "telemetry", "auth", "docs", "openapi.json"}:
+        raise HTTPException(status_code=404)
+
+    # Serve a real file if it exists (e.g., /assets/logo.svg), else serve index.html
+    candidate = os.path.join(FRONTEND_DIR, full_path)
+    if os.path.isfile(candidate):
+        return FileResponse(candidate)
+    index = os.path.join(FRONTEND_DIR, "index.html")
+    if os.path.exists(index):
+        return FileResponse(index)
+    raise HTTPException(status_code=404)
+
+
 @app.get("/", include_in_schema=False)
 def home():
     db_state = "online" if DB_AVAILABLE else "offline"
