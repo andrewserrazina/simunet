@@ -13,6 +13,46 @@ app=FastAPI()
 @app.get('/status')
 def s(): return {'ok':True,'db':False}
 
+# Serve the frontend from the same container
+FRONTEND_DIR = os.getenv(
+    "SIMUNET_FRONTEND_DIR",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
+)
+
+assets_dir = os.path.join(FRONTEND_DIR, "assets")
+if os.path.isdir(assets_dir):
+    app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+@app.get("/", include_in_schema=False)
+def serve_index():
+    index = os.path.join(FRONTEND_DIR, "index.html")
+    if not os.path.exists(index):
+        return {"ok": True, "db": DB_AVAILABLE, "hint": "Place frontend in /app/frontend or set SIMUNET_FRONTEND_DIR"}
+    return FileResponse(index)
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    path = os.path.join(FRONTEND_DIR, "favicon.ico")
+    if os.path.exists(path):
+        return FileResponse(path)
+    raise HTTPException(status_code=404)
+
+# SPA fallback: serve index.html for unknown non-API paths
+@app.get("/{full_path:path}", include_in_schema=False)
+def spa_fallback(full_path: str):
+    first = (full_path or "").split("/", 1)[0]
+    if first in {"status","dev","flights","telemetry","auth","docs","openapi.json"}:
+        # let FastAPI handle real API/docs routes
+        raise HTTPException(status_code=404)
+    candidate = os.path.join(FRONTEND_DIR, full_path)
+    if os.path.isfile(candidate):
+        return FileResponse(candidate)
+    index = os.path.join(FRONTEND_DIR, "index.html")
+    if os.path.exists(index):
+        return FileResponse(index)
+    raise HTTPException(status_code=404)
+
+
 # Where the built/static frontend lives (we’ll copy it into the container at /app/frontend)
 FRONTEND_DIR = os.getenv(
     "SIMUNET_FRONTEND_DIR",
