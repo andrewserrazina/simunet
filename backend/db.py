@@ -100,4 +100,3 @@ def _init_engine():
         raise RuntimeError("DATABASE_URL not set")
     if _engine is None:
         # Set echo=True temporarily if you want to see SQL in logs
-frontend/index.html
