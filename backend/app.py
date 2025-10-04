@@ -16,6 +16,11 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+try:  # pragma: no cover - optional when running without SQLAlchemy
+    from sqlalchemy.orm import joinedload
+except Exception:  # pragma: no cover - keep optional dependency soft
+    joinedload = None  # type: ignore[assignment]
+
 app = FastAPI()
 
 DB_AVAILABLE = False
@@ -111,6 +116,26 @@ def _serialize_point(point: Any) -> dict[str, Any]:
     }
 
 
+def _serialize_job(job: Any) -> dict[str, Any]:
+    if isinstance(job, dict):
+        legs = job.get("legs", [])
+        return {
+            "job_id": job.get("job_id"),
+            "legs": legs,
+            "created_at": job.get("created_at"),
+        }
+
+    legs = []
+    for leg in getattr(job, "legs", []) or []:
+        legs.append({"seq": getattr(leg, "seq", 0), "mode": getattr(leg, "mode", "")})
+
+    return {
+        "job_id": getattr(job, "job_id", None),
+        "legs": legs,
+        "created_at": _isoformat(getattr(job, "created_at", None)),
+    }
+
+
 class TelemetryPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -142,6 +167,7 @@ def get_status() -> dict[str, object]:
 def reseed() -> dict[str, Any]:
     """Create a demo job/assignment for quickstarts."""
     job_id = uuid.uuid4().hex[:12]
+    created_at = _now_iso()
     legs = [
         {"seq": 1, "mode": "truck"},
         {"seq": 2, "mode": "air"},
@@ -165,11 +191,31 @@ def reseed() -> dict[str, Any]:
         state.setdefault("jobs", {})[job_id] = {
             "job_id": job_id,
             "legs": legs,
-            "created_at": _now_iso(),
+            "created_at": created_at,
         }
         _save_state(state)
 
-    return {"ok": True, "job_id": job_id, "legs": legs}
+    return {"ok": True, "job_id": job_id, "legs": legs, "created_at": created_at}
+
+
+@app.get("/jobs")
+def list_jobs() -> dict[str, Any]:
+    """Return known jobs and their legs."""
+
+    if USE_DB:
+        with _session() as session:
+            query = session.query(db_module.Job)
+            if joinedload is not None:
+                query = query.options(joinedload(db_module.Job.legs))
+            jobs = query.order_by(db_module.Job.job_id.desc()).all()
+            serialized = [_serialize_job(job) for job in jobs]
+    else:
+        state = _load_state()
+        stored = state.get("jobs", {})
+        serialized = [_serialize_job(job) for job in stored.values()]
+        serialized.sort(key=lambda item: item.get("created_at") or "", reverse=True)
+
+    return {"jobs": serialized}
 
 
 @app.post("/flights", status_code=status.HTTP_201_CREATED)
