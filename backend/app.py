@@ -133,7 +133,7 @@ if os.path.isdir(assets_dir):
 
 
 @app.get("/status")
-def status() -> dict[str, object]:
+def get_status() -> dict[str, object]:
     """Simple health endpoint used by the frontend and smoke tests."""
     return {"ok": True, "db": DB_AVAILABLE, "error": DB_ERROR}
 
