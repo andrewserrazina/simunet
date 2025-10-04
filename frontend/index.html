@@ -25,6 +25,7 @@
       <nav class="mt-4 flex-1 flex flex-col">
         <a data-nav="dashboard" class="nav-link flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 text-white" href="#dashboard"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
         <a data-nav="jobs" class="nav-link flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-white/10" href="#jobs"><i data-lucide="clipboard-list" class="w-4 h-4"></i> Jobs</a>
+        <a data-nav="admin" id="navAdmin" class="nav-link flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-white/10 hidden" href="#admin"><i data-lucide="shield-check" class="w-4 h-4"></i> Admin</a>
         <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-white/10" href="#"><i data-lucide="plane" class="w-4 h-4"></i> Flights</a>
         <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-white/10" href="#"><i data-lucide="radio" class="w-4 h-4"></i> Connectors</a>
         <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-white/10" href="#"><i data-lucide="book-open" class="w-4 h-4"></i> Docs</a>
@@ -204,6 +205,137 @@
             </div>
           </div>
         </section>
+
+        <section data-page="admin" class="space-y-6 hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 class="text-xl font-semibold">Admin Control Center</h2>
+              <p class="text-sm text-slate-400">Manage SimuNet missions and pilot profiles.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="adminStatus" class="text-xs text-slate-400">Sign in with an administrator account to continue.</span>
+              <button id="btnAdminRefresh" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm hidden">Refresh</button>
+            </div>
+          </div>
+
+          <div id="adminGate" class="border border-dashed border-indigo-400/60 bg-indigo-500/5 rounded-2xl p-6 text-sm text-slate-200">
+            Sign in as a SimuNet administrator to access mission publishing, moderation, and crew management tools.
+          </div>
+
+          <div id="adminContent" class="space-y-6 hidden">
+            <div class="grid lg:grid-cols-2 gap-4">
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4 space-y-4">
+                <div class="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 class="text-lg font-semibold text-slate-100">Publish mission</h3>
+                    <p class="text-xs text-slate-400">Create assignments on behalf of SimuNet Ops.</p>
+                  </div>
+                </div>
+                <form id="formAdminJob" class="space-y-3">
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobTitle">Mission title</label>
+                    <input id="adminJobTitle" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Arctic supply run" required />
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobPayload">Payload</label>
+                    <input id="adminJobPayload" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Medical cargo" required />
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobWeight">Weight (lbs)</label>
+                      <input id="adminJobWeight" type="number" min="0" step="0.1" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="6800" />
+                    </div>
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobDeadline">Deadline</label>
+                      <input id="adminJobDeadline" type="datetime-local" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" required />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobDeparture">Departure</label>
+                      <input id="adminJobDeparture" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 uppercase" placeholder="KSEA" required maxlength="8" />
+                    </div>
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobArrival">Arrival</label>
+                      <input id="adminJobArrival" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 uppercase" placeholder="CYVR" required maxlength="8" />
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobAssign">Assign to (optional)</label>
+                    <input id="adminJobAssign" type="email" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="pilot@example.com" />
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobNotes">Notes</label>
+                    <textarea id="adminJobNotes" rows="3" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Share weather, coordination, or cargo handling details."></textarea>
+                  </div>
+                  <button type="submit" class="w-full px-3 py-2 rounded-lg grad text-sm font-medium">Publish mission</button>
+                </form>
+                <p class="text-xs text-slate-400">Assignments can optionally be pre-assigned to a pilot email. Leave blank to keep them open.</p>
+              </div>
+
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4 space-y-4">
+                <div>
+                  <h3 class="text-lg font-semibold text-slate-100">SimuNet Ops tools</h3>
+                  <p class="text-xs text-slate-400">Automate job creation and keep the board refreshed.</p>
+                </div>
+                <div class="space-y-3">
+                  <button id="btnAdminGenerate" type="button" class="w-full px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm flex items-center justify-center gap-2">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>Generate SimuNet missions</span>
+                  </button>
+                  <p class="text-xs text-slate-400">SimuNet Ops missions come with curated payloads, routes, and deadlines.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                <div>
+                  <h3 class="text-lg font-semibold text-slate-100">All jobs</h3>
+                  <p class="text-sm text-slate-400">Monitor and remove assignments across the network.</p>
+                </div>
+              </div>
+              <div class="overflow-auto">
+                <table class="w-full text-sm">
+                  <thead class="text-left text-slate-300">
+                    <tr>
+                      <th class="py-2">Mission</th>
+                      <th class="py-2">Creator</th>
+                      <th class="py-2">Assigned</th>
+                      <th class="py-2">Deadline</th>
+                      <th class="py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminJobsBody" class="text-slate-400"></tbody>
+                </table>
+              </div>
+              <div id="adminJobsEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">No jobs recorded yet.</div>
+            </div>
+
+            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                <div>
+                  <h3 class="text-lg font-semibold text-slate-100">User directory</h3>
+                  <p class="text-sm text-slate-400">Promote admins, reset passwords, or remove inactive accounts.</p>
+                </div>
+              </div>
+              <div class="overflow-auto">
+                <table class="w-full text-sm">
+                  <thead class="text-left text-slate-300">
+                    <tr>
+                      <th class="py-2">Email</th>
+                      <th class="py-2">Role</th>
+                      <th class="py-2">Created</th>
+                      <th class="py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminUsersBody" class="text-slate-400"></tbody>
+                </table>
+              </div>
+              <div id="adminUsersEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">No users found.</div>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   </div>
@@ -303,6 +435,25 @@
     const jobArrival = document.getElementById('jobArrival');
     const jobDeadline = document.getElementById('jobDeadline');
     const jobNotes = document.getElementById('jobNotes');
+    const navAdmin = document.getElementById('navAdmin');
+    const adminStatus = document.getElementById('adminStatus');
+    const adminGate = document.getElementById('adminGate');
+    const adminContent = document.getElementById('adminContent');
+    const btnAdminRefresh = document.getElementById('btnAdminRefresh');
+    const btnAdminGenerate = document.getElementById('btnAdminGenerate');
+    const formAdminJob = document.getElementById('formAdminJob');
+    const adminJobTitle = document.getElementById('adminJobTitle');
+    const adminJobPayload = document.getElementById('adminJobPayload');
+    const adminJobWeight = document.getElementById('adminJobWeight');
+    const adminJobDeparture = document.getElementById('adminJobDeparture');
+    const adminJobArrival = document.getElementById('adminJobArrival');
+    const adminJobDeadline = document.getElementById('adminJobDeadline');
+    const adminJobNotes = document.getElementById('adminJobNotes');
+    const adminJobAssign = document.getElementById('adminJobAssign');
+    const adminJobsBody = document.getElementById('adminJobsBody');
+    const adminJobsEmpty = document.getElementById('adminJobsEmpty');
+    const adminUsersBody = document.getElementById('adminUsersBody');
+    const adminUsersEmpty = document.getElementById('adminUsersEmpty');
     const pages = document.querySelectorAll('[data-page]');
     const navLinks = document.querySelectorAll('[data-nav]');
     const accountButton = document.getElementById('btnAccount');
@@ -327,22 +478,22 @@
     const authSubtitle = document.getElementById('authSubtitle');
 
     let jobsLoaded = false;
+    let adminLoaded = false;
 
-    function setJobDeadlineDefault() {
-      if (!jobDeadline) {
+    function setJobDeadlineDefault(input) {
+      if (!input) {
         return;
       }
       const baseline = new Date(Date.now() + 2 * 60 * 60 * 1000);
       const tzOffset = baseline.getTimezoneOffset() * 60000;
       const local = new Date(baseline.getTime() - tzOffset);
-      jobDeadline.value = local.toISOString().slice(0, 16);
+      input.value = local.toISOString().slice(0, 16);
     }
 
-    if (jobDeadline) {
-      setJobDeadlineDefault();
-    }
+    setJobDeadlineDefault(jobDeadline);
+    setJobDeadlineDefault(adminJobDeadline);
 
-    [jobDeparture, jobArrival].forEach((input) => {
+    [jobDeparture, jobArrival, adminJobDeparture, adminJobArrival].forEach((input) => {
       if (!input) {
         return;
       }
@@ -430,11 +581,12 @@
       if (currentUser) {
         ls.setItem(USER_KEY, JSON.stringify(currentUser));
       } else {
-        ls.removeItem(USER_KEY);
-      }
-      updateAccountUI();
-      if (kpiAccount) {
-        const label = currentUser && currentUser.email ? currentUser.email : 'Guest';
+      ls.removeItem(USER_KEY);
+    }
+    updateAccountUI();
+    updateAdminUI();
+    if (kpiAccount) {
+      const label = currentUser && currentUser.email ? currentUser.email : 'Guest';
         kpiAccount.textContent = label;
         if (kpiAccount.parentElement) {
           kpiAccount.parentElement.setAttribute('title', label);
@@ -473,6 +625,30 @@
         accountLabel.textContent = 'Sign in';
         accountLabel.classList.add('text-slate-300');
         accountLabel.classList.remove('text-slate-100');
+      }
+    }
+
+    function updateAdminUI() {
+      const isAdmin = Boolean(currentUser && currentUser.is_admin);
+      if (navAdmin) {
+        navAdmin.classList.toggle('hidden', !isAdmin);
+      }
+      if (btnAdminRefresh) {
+        btnAdminRefresh.classList.toggle('hidden', !isAdmin);
+      }
+      if (adminGate) {
+        adminGate.classList.toggle('hidden', isAdmin);
+      }
+      if (adminContent) {
+        adminContent.classList.toggle('hidden', !isAdmin);
+      }
+      if (!isAdmin) {
+        adminLoaded = false;
+        if (adminStatus) {
+          adminStatus.textContent = 'Sign in with an administrator account to continue.';
+        }
+      } else if (adminStatus && !adminLoaded) {
+        adminStatus.textContent = 'Admin tools ready. Refresh to load data.';
       }
     }
 
@@ -664,6 +840,41 @@
       }
     }
 
+    async function loadAdminOverview(force = false) {
+      if (!currentUser || !currentUser.email || !currentUser.is_admin) {
+        return;
+      }
+      if (adminLoaded && !force) {
+        return;
+      }
+
+      if (adminStatus) {
+        adminStatus.textContent = 'Loading admin data…';
+      }
+
+      const actor = encodeURIComponent(currentUser.email.toLowerCase());
+      try {
+        const [jobsRes, usersRes] = await Promise.all([
+          apiFetch(`/admin/jobs?actor=${actor}`),
+          apiFetch(`/admin/users?actor=${actor}`),
+        ]);
+        const jobsList = jobsRes && Array.isArray(jobsRes.jobs) ? jobsRes.jobs : [];
+        const usersList = usersRes && Array.isArray(usersRes.users) ? usersRes.users : [];
+        renderAdminJobs(jobsList);
+        renderAdminUsers(usersList);
+        adminLoaded = true;
+        if (adminStatus) {
+          adminStatus.textContent = 'Admin data updated ' + new Date().toLocaleTimeString();
+        }
+      } catch (err) {
+        console.error(err);
+        adminLoaded = false;
+        if (adminStatus) {
+          adminStatus.textContent = err instanceof Error ? err.message : 'Unable to load admin data.';
+        }
+      }
+    }
+
     function renderJobs(availableJobs, myJobs) {
       const signedIn = Boolean(currentUser && currentUser.email);
       renderJobCollection(jobsAvailable, jobsAvailableEmpty, availableJobs, { allowClaim: true, signedIn, mineList: false });
@@ -704,6 +915,85 @@
       emptyEl.classList.add('hidden');
       jobs.forEach((job) => {
         container.appendChild(buildJobCard(job, { allowClaim, signedIn }));
+      });
+    }
+
+    function renderAdminJobs(jobs) {
+      if (!adminJobsBody || !adminJobsEmpty) {
+        return;
+      }
+      adminJobsBody.innerHTML = '';
+      const list = Array.isArray(jobs) ? jobs : [];
+      if (!list.length) {
+        adminJobsEmpty.classList.remove('hidden');
+        return;
+      }
+      adminJobsEmpty.classList.add('hidden');
+      list.forEach((job) => {
+        const jobId = job && job.job_id ? String(job.job_id) : '';
+        const row = document.createElement('tr');
+        row.className = 'border-b border-white/5 last:border-0';
+        const title = escapeHtml(job && job.title ? job.title : (jobId || 'Mission'));
+        const creator = escapeHtml(job && job.created_by ? job.created_by : 'SimuNet Ops');
+        const assigned = job && job.assigned_to ? escapeHtml(job.assigned_to) : '—';
+        const deadlineText = job && job.deadline ? escapeHtml(fmtDate(job.deadline)) : '—';
+        row.innerHTML = `
+          <td class="py-2 font-medium text-slate-100">${title}</td>
+          <td class="py-2 text-slate-400">${creator}</td>
+          <td class="py-2 text-slate-400">${assigned}</td>
+          <td class="py-2 text-slate-400">${deadlineText}</td>
+          <td class="py-2 text-right">
+            <button class="px-2 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-xs text-red-200" type="button" data-action="delete">Delete</button>
+          </td>`;
+        const deleteBtn = row.querySelector('[data-action="delete"]');
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', () => handleAdminDeleteJob(jobId, job && job.title ? job.title : jobId));
+        }
+        adminJobsBody.appendChild(row);
+      });
+    }
+
+    function renderAdminUsers(users) {
+      if (!adminUsersBody || !adminUsersEmpty) {
+        return;
+      }
+      adminUsersBody.innerHTML = '';
+      const list = Array.isArray(users) ? users : [];
+      if (!list.length) {
+        adminUsersEmpty.classList.remove('hidden');
+        return;
+      }
+      adminUsersEmpty.classList.add('hidden');
+      list.forEach((user) => {
+        const email = user && user.email ? String(user.email) : '';
+        const isAdmin = Boolean(user && user.is_admin);
+        const createdText = user && user.created_at ? fmtDate(user.created_at) : '—';
+        const row = document.createElement('tr');
+        row.className = 'border-b border-white/5 last:border-0';
+        row.innerHTML = `
+          <td class="py-2 font-medium text-slate-100">${escapeHtml(email || '—')}</td>
+          <td class="py-2 text-slate-300">${isAdmin ? 'Admin' : 'User'}</td>
+          <td class="py-2 text-slate-400">${escapeHtml(createdText)}</td>
+          <td class="py-2">
+            <div class="flex flex-wrap justify-end gap-2">
+              <button class="px-2 py-1 rounded bg-white/10 hover:bg-white/15 text-xs" type="button" data-action="toggle">${isAdmin ? 'Revoke admin' : 'Make admin'}</button>
+              <button class="px-2 py-1 rounded bg-white/10 hover:bg-white/15 text-xs" type="button" data-action="reset">Reset password</button>
+              <button class="px-2 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-xs text-red-200" type="button" data-action="delete">Delete</button>
+            </div>
+          </td>`;
+        const toggleBtn = row.querySelector('[data-action="toggle"]');
+        if (toggleBtn) {
+          toggleBtn.addEventListener('click', () => handleAdminToggleUser(email, !isAdmin));
+        }
+        const resetBtn = row.querySelector('[data-action="reset"]');
+        if (resetBtn) {
+          resetBtn.addEventListener('click', () => handleAdminResetPassword(email));
+        }
+        const deleteBtn = row.querySelector('[data-action="delete"]');
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', () => handleAdminDeleteUser(email));
+        }
+        adminUsersBody.appendChild(row);
       });
     }
 
@@ -823,6 +1113,116 @@
       }
     }
 
+    async function handleAdminDeleteJob(jobId, label) {
+      if (!jobId || !currentUser || !currentUser.email || !currentUser.is_admin) {
+        return;
+      }
+      const promptLabel = label ? `Delete job "${label}"?` : 'Delete this job?';
+      if (!window.confirm(promptLabel)) {
+        return;
+      }
+      const actor = encodeURIComponent(currentUser.email.toLowerCase());
+      try {
+        await apiFetch(`/admin/jobs/${encodeURIComponent(jobId)}?actor=${actor}`, { method: 'DELETE' });
+        if (adminStatus) {
+          adminStatus.textContent = 'Job removed.';
+        }
+        await Promise.all([loadAdminOverview(true), loadJobs(true)]);
+      } catch (err) {
+        console.error(err);
+        if (adminStatus) {
+          adminStatus.textContent = err instanceof Error ? err.message : 'Unable to remove job.';
+        }
+      }
+    }
+
+    async function handleAdminToggleUser(email, makeAdmin) {
+      if (!email || !currentUser || !currentUser.email || !currentUser.is_admin) {
+        return;
+      }
+      const actor = encodeURIComponent(currentUser.email.toLowerCase());
+      try {
+        const response = await apiFetch(`/admin/users/${encodeURIComponent(email)}?actor=${actor}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_admin: makeAdmin }),
+        });
+        if (adminStatus) {
+          adminStatus.textContent = makeAdmin
+            ? `Granted admin privileges to ${email}.`
+            : `Revoked admin privileges from ${email}.`;
+        }
+        if (response && response.user && currentUser.email && currentUser.email.toLowerCase() === email.toLowerCase()) {
+          setCurrentUser({ ...currentUser, ...response.user });
+        }
+        await loadAdminOverview(true);
+      } catch (err) {
+        console.error(err);
+        if (adminStatus) {
+          adminStatus.textContent = err instanceof Error ? err.message : 'Unable to update user.';
+        }
+      }
+    }
+
+    async function handleAdminResetPassword(email) {
+      if (!email || !currentUser || !currentUser.email || !currentUser.is_admin) {
+        return;
+      }
+      const nextPassword = window.prompt(`Enter a new password for ${email} (min. 8 characters)`);
+      if (nextPassword === null) {
+        return;
+      }
+      const trimmed = nextPassword.trim();
+      if (trimmed.length < 8) {
+        window.alert('Password must be at least 8 characters long.');
+        return;
+      }
+      const actor = encodeURIComponent(currentUser.email.toLowerCase());
+      try {
+        await apiFetch(`/admin/users/${encodeURIComponent(email)}?actor=${actor}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: trimmed }),
+        });
+        if (adminStatus) {
+          adminStatus.textContent = `Password reset for ${email}.`;
+        }
+      } catch (err) {
+        console.error(err);
+        if (adminStatus) {
+          adminStatus.textContent = err instanceof Error ? err.message : 'Unable to reset password.';
+        }
+      }
+    }
+
+    async function handleAdminDeleteUser(email) {
+      if (!email || !currentUser || !currentUser.email || !currentUser.is_admin) {
+        return;
+      }
+      if (!window.confirm(`Remove ${email}? Any claimed jobs will be released.`)) {
+        return;
+      }
+      const actor = encodeURIComponent(currentUser.email.toLowerCase());
+      try {
+        const response = await apiFetch(`/admin/users/${encodeURIComponent(email)}?actor=${actor}`, { method: 'DELETE' });
+        if (adminStatus) {
+          adminStatus.textContent = `Removed ${email}.`;
+        }
+        const lowerEmail = email.toLowerCase();
+        const removedSelf = (response && response.self) || (currentUser.email && currentUser.email.toLowerCase() === lowerEmail);
+        if (removedSelf) {
+          setCurrentUser(null);
+        } else {
+          await Promise.all([loadAdminOverview(true), loadJobs(true)]);
+        }
+      } catch (err) {
+        console.error(err);
+        if (adminStatus) {
+          adminStatus.textContent = err instanceof Error ? err.message : 'Unable to remove user.';
+        }
+      }
+    }
+
     if (formCreateJob) {
       formCreateJob.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -890,7 +1290,7 @@
           if (jobWeight) {
             jobWeight.value = weightValue !== null ? String(weightValue) : '';
           }
-          setJobDeadlineDefault();
+          setJobDeadlineDefault(jobDeadline);
           await loadJobs(true);
           statusEl.textContent = 'Job created.';
         } catch (err) {
@@ -930,6 +1330,147 @@
           btnJobsGenerate.disabled = false;
           btnJobsGenerate.classList.remove('opacity-60', 'cursor-not-allowed');
         }
+      });
+    }
+
+    if (formAdminJob) {
+      formAdminJob.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!currentUser || !currentUser.email || !currentUser.is_admin) {
+          if (adminStatus) {
+            adminStatus.textContent = 'Admin access required to publish missions.';
+          }
+          toggleAuthSheet(true, 'login');
+          return;
+        }
+
+        const titleValue = adminJobTitle ? adminJobTitle.value.trim() : '';
+        const payloadValue = adminJobPayload ? adminJobPayload.value.trim() : '';
+        const departureValue = adminJobDeparture ? adminJobDeparture.value.trim().toUpperCase() : '';
+        const arrivalValue = adminJobArrival ? adminJobArrival.value.trim().toUpperCase() : '';
+        const deadlineValue = adminJobDeadline ? adminJobDeadline.value : '';
+        const notesValue = adminJobNotes ? adminJobNotes.value.trim() : '';
+        const assignedValue = adminJobAssign ? adminJobAssign.value.trim().toLowerCase() : '';
+
+        if (!titleValue || !payloadValue || !departureValue || !arrivalValue || !deadlineValue) {
+          if (adminStatus) {
+            adminStatus.textContent = 'All required fields must be completed.';
+          }
+          return;
+        }
+
+        const deadlineDate = new Date(deadlineValue);
+        if (Number.isNaN(deadlineDate.getTime())) {
+          if (adminStatus) {
+            adminStatus.textContent = 'Deadline must be a valid date/time.';
+          }
+          return;
+        }
+
+        let weightValue = null;
+        if (adminJobWeight && adminJobWeight.value.trim()) {
+          const parsed = Number(adminJobWeight.value);
+          if (!Number.isFinite(parsed) || parsed < 0) {
+            if (adminStatus) {
+              adminStatus.textContent = 'Weight must be a positive number.';
+            }
+            return;
+          }
+          weightValue = parsed;
+        }
+
+        const payloadBody = {
+          title: titleValue,
+          platform: 'Microsoft Flight Simulator',
+          payload: payloadValue,
+          weight_lbs: weightValue,
+          departure_airport: departureValue,
+          arrival_airport: arrivalValue,
+          deadline: deadlineDate.toISOString(),
+          notes: notesValue || null,
+          created_by: currentUser.email.toLowerCase(),
+          assigned_to: assignedValue || null,
+          legs: [{ seq: 1, mode: 'flight' }],
+        };
+
+        if (adminStatus) {
+          adminStatus.textContent = 'Publishing mission…';
+        }
+
+        try {
+          await apiFetch('/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payloadBody),
+          });
+          formAdminJob.reset();
+          setJobDeadlineDefault(adminJobDeadline);
+          if (adminJobDeparture) {
+            adminJobDeparture.value = departureValue;
+          }
+          if (adminJobArrival) {
+            adminJobArrival.value = arrivalValue;
+          }
+          await Promise.all([loadJobs(false), loadAdminOverview(true)]);
+          if (adminStatus) {
+            adminStatus.textContent = 'Mission published.';
+          }
+        } catch (err) {
+          console.error(err);
+          if (adminStatus) {
+            adminStatus.textContent = err instanceof Error ? err.message : 'Unable to publish mission.';
+          }
+        }
+      });
+    }
+
+    if (btnAdminGenerate) {
+      btnAdminGenerate.addEventListener('click', async () => {
+        if (!currentUser || !currentUser.email || !currentUser.is_admin) {
+          if (adminStatus) {
+            adminStatus.textContent = 'Admin access required for auto-generation.';
+          }
+          toggleAuthSheet(true, 'login');
+          return;
+        }
+        if (btnAdminGenerate.disabled) {
+          return;
+        }
+        btnAdminGenerate.disabled = true;
+        btnAdminGenerate.classList.add('opacity-60', 'cursor-not-allowed');
+        if (adminStatus) {
+          adminStatus.textContent = 'Requesting SimuNet missions…';
+        }
+        try {
+          const res = await apiFetch('/jobs/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ count: 3 }),
+          });
+          await Promise.all([loadJobs(false), loadAdminOverview(true)]);
+          const created = res && typeof res === 'object' && res !== null
+            ? (Array.isArray(res.jobs) ? res.jobs.length : (typeof res.count === 'number' ? res.count : 0))
+            : 0;
+          if (adminStatus) {
+            adminStatus.textContent = created > 0
+              ? `SimuNet generated ${created} new mission${created === 1 ? '' : 's'}.`
+              : 'SimuNet had no new missions ready.';
+          }
+        } catch (err) {
+          console.error(err);
+          if (adminStatus) {
+            adminStatus.textContent = err instanceof Error ? err.message : 'Unable to request missions.';
+          }
+        } finally {
+          btnAdminGenerate.disabled = false;
+          btnAdminGenerate.classList.remove('opacity-60', 'cursor-not-allowed');
+        }
+      });
+    }
+
+    if (btnAdminRefresh) {
+      btnAdminRefresh.addEventListener('click', () => {
+        loadAdminOverview(true);
       });
     }
 
@@ -1072,6 +1613,13 @@
       updateNav(page);
       if (page === 'jobs') {
         loadJobs(!jobsLoaded);
+      }
+      if (page === 'admin') {
+        if (currentUser && currentUser.is_admin) {
+          loadAdminOverview(!adminLoaded);
+        } else if (adminStatus) {
+          adminStatus.textContent = 'Admin privileges required to view this page.';
+        }
       }
       if (updateHash && ('#' + page) !== location.hash) {
         history.replaceState(null, '', '#' + page);
