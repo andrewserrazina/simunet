@@ -14,6 +14,7 @@ from sqlalchemy import (
     MetaData,
     UniqueConstraint,
     Text,
+    Boolean,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
@@ -48,6 +49,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True, default=datetime.utcnow)
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 class Job(Base):
     __tablename__ = "jobs"
