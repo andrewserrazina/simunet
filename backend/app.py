@@ -7,6 +7,7 @@ import os
 import uuid
 import hashlib
 import secrets
+import importlib.util
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,10 +29,19 @@ app = FastAPI()
 DB_AVAILABLE = False
 DB_ERROR = None
 
-try:
-    from . import db as db_module  # type: ignore[import-self]
-except ImportError:  # pragma: no cover - allows running without package context
-    import db as db_module  # type: ignore[no-redef]
+try:  # pragma: no cover - runtime import shims for flexible deployment layouts
+    from backend import db as db_module  # type: ignore[import-self]
+except ImportError:  # pragma: no cover - package might not be installed
+    try:
+        from . import db as db_module  # type: ignore[import-self]
+    except ImportError:
+        spec = importlib.util.spec_from_file_location(
+            "db", Path(__file__).with_name("db.py")
+        )
+        if spec is None or spec.loader is None:  # pragma: no cover - defensive
+            raise
+        db_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(db_module)
 
 try:
     DB_AVAILABLE, DB_ERROR = db_module.ensure_db()
