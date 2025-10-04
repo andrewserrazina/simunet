@@ -99,4 +99,23 @@ def _init_engine():
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL not set")
     if _engine is None:
-        # Set echo=True temporarily if you want to see SQL in logs
+        _engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+        SessionLocal = sessionmaker(bind=_engine)
+
+def ensure_db():
+    """
+    Create the engine, create tables, and run a sanity SELECT.
+    Returns (True, None) on success, (False, 'error message') on failure.
+    """
+    try:
+        _init_engine()
+        Base.metadata.create_all(_engine)
+        with _engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        print("DB init: connected and tables ensured", flush=True)
+        return True, None
+    except Exception as e:
+        import traceback
+        print("DB init error:", e, flush=True)
+        traceback.print_exc()
+        return False, str(e)
