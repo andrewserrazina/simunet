@@ -12,6 +12,8 @@ import types
 import importlib
 import importlib.util
 import random
+import tempfile
+import traceback
 from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -38,6 +40,45 @@ PROJECT_ROOT = BACKEND_DIR.parent
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+TMP_STATE_PATH = Path(tempfile.gettempdir()) / "simunet_state.json"
+
+
+def _resolve_state_path() -> Path:
+    """Choose a writable location for the JSON fallback state."""
+
+    override = os.getenv("SIMUNET_STATE_PATH")
+
+    candidates: list[Path] = []
+    if override:
+        candidates.append(Path(override))
+
+    candidates.append(BACKEND_DIR / "data" / "state.json")
+    candidates.append(TMP_STATE_PATH)
+
+    for candidate in candidates:
+        parent = candidate.parent
+        test_path = parent / f".simunet_state_test_{os.getpid()}"
+        try:
+            parent.mkdir(parents=True, exist_ok=True)
+            with test_path.open("w", encoding="utf-8"):
+                pass
+        except Exception:
+            try:
+                if test_path.exists():
+                    test_path.unlink()
+            except Exception:
+                pass
+            continue
+        else:
+            try:
+                test_path.unlink()
+            except Exception:
+                pass
+            return candidate
+
+    TMP_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    return TMP_STATE_PATH
 
 
 def _load_db_module():
@@ -77,7 +118,7 @@ except Exception as exc:  # pragma: no cover - keep API responsive on DB failure
 USE_DB = bool(DB_AVAILABLE and getattr(db_module, "SessionLocal", None))
 
 
-STATE_PATH = Path(os.path.join(os.path.dirname(__file__), "data", "state.json"))
+STATE_PATH = _resolve_state_path()
 
 SIMUNET_CREATOR_EMAIL = "ops@simunet.local"
 
@@ -179,21 +220,64 @@ def _now_iso(ts: datetime | None = None) -> str:
 
 
 def _load_state() -> dict[str, Any]:
+    global STATE_PATH
+
     try:
         with STATE_PATH.open("r", encoding="utf-8") as fh:
             return json.load(fh)
     except FileNotFoundError:
+        if STATE_PATH != TMP_STATE_PATH and TMP_STATE_PATH.exists():
+            STATE_PATH = TMP_STATE_PATH
+            return _load_state()
+        return {"users": {}, "jobs": {}, "flights": {}, "telemetry": {}}
+    except PermissionError:
+        if STATE_PATH != TMP_STATE_PATH:
+            STATE_PATH = TMP_STATE_PATH
+            return _load_state()
         return {"users": {}, "jobs": {}, "flights": {}, "telemetry": {}}
     except json.JSONDecodeError:
         return {"users": {}, "jobs": {}, "flights": {}, "telemetry": {}}
 
 
 def _save_state(state: dict[str, Any]) -> None:
-    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = STATE_PATH.with_suffix(".tmp")
-    with tmp_path.open("w", encoding="utf-8") as fh:
-        json.dump(state, fh, indent=2, sort_keys=True)
-    tmp_path.replace(STATE_PATH)
+    global STATE_PATH
+
+    def _write(target: Path) -> None:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = target.with_suffix(".tmp")
+        with tmp_path.open("w", encoding="utf-8") as fh:
+            json.dump(state, fh, indent=2, sort_keys=True)
+        tmp_path.replace(target)
+
+    try:
+        _write(STATE_PATH)
+    except PermissionError:
+        if STATE_PATH != TMP_STATE_PATH:
+            STATE_PATH = TMP_STATE_PATH
+            _write(STATE_PATH)
+        else:
+            raise
+    except OSError:
+        if STATE_PATH != TMP_STATE_PATH:
+            STATE_PATH = TMP_STATE_PATH
+            _write(STATE_PATH)
+        else:
+            raise
+
+
+def _handle_db_failure(exc: Exception, context: str | None = None) -> None:
+    """Disable database usage and log the failure before falling back to JSON state."""
+
+    global USE_DB, DB_AVAILABLE, DB_ERROR
+
+    DB_AVAILABLE = False
+    USE_DB = False
+    DB_ERROR = str(exc)
+
+    context_label = f" during {context}" if context else ""
+    message = f"DB failure{context_label}: {exc}"
+    print(message, file=sys.stderr, flush=True)
+    traceback.print_exc()
 
 
 def _normalize_email(email: str) -> str:
@@ -699,26 +783,33 @@ def register(payload: AuthPayload) -> dict[str, Any]:
     password = payload.password
 
     if USE_DB:
-        with _session() as session:
-            existing = session.query(db_module.User).filter_by(email=email).one_or_none()
-            if existing:
-                raise HTTPException(status_code=409, detail="Email already registered")
-            is_admin = email == SIMUNET_CREATOR_EMAIL
-            if not is_admin and hasattr(db_module.User, "is_admin"):
-                is_admin = _count_admins_db(session) == 0
+        try:
+            with _session() as session:
+                existing = (
+                    session.query(db_module.User).filter_by(email=email).one_or_none()
+                )
+                if existing:
+                    raise HTTPException(status_code=409, detail="Email already registered")
+                is_admin = email == SIMUNET_CREATOR_EMAIL
+                if not is_admin and hasattr(db_module.User, "is_admin"):
+                    is_admin = _count_admins_db(session) == 0
 
-            user_kwargs = {
-                "email": email,
-                "hashed_password": _hash_password(password),
-                "created_at": datetime.utcnow(),
-            }
-            if hasattr(db_module.User, "is_admin"):
-                user_kwargs["is_admin"] = bool(is_admin)
+                user_kwargs = {
+                    "email": email,
+                    "hashed_password": _hash_password(password),
+                    "created_at": datetime.utcnow(),
+                }
+                if hasattr(db_module.User, "is_admin"):
+                    user_kwargs["is_admin"] = bool(is_admin)
 
-            user = db_module.User(**user_kwargs)
-            session.add(user)
-            session.flush()
-            return {"ok": True, "user": _serialize_user(user)}
+                user = db_module.User(**user_kwargs)
+                session.add(user)
+                session.flush()
+                return {"ok": True, "user": _serialize_user(user)}
+        except HTTPException:
+            raise
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            _handle_db_failure(exc, "register")
 
     state = _load_state()
     users = state.setdefault("users", {})
@@ -744,17 +835,26 @@ def login(payload: AuthPayload) -> dict[str, Any]:
     password = payload.password
 
     if USE_DB:
-        with _session() as session:
-            user = session.query(db_module.User).filter_by(email=email).one_or_none()
-            if user is None or not _verify_password(password, user.hashed_password):
-                raise HTTPException(status_code=401, detail="Invalid credentials")
-            if getattr(user, "created_at", None) is None:
-                user.created_at = datetime.utcnow()
-                session.flush()
-            if email == SIMUNET_CREATOR_EMAIL and hasattr(user, "is_admin") and not _user_is_admin(user, email):
-                user.is_admin = True  # type: ignore[assignment]
-                session.flush()
-            return {"ok": True, "user": _serialize_user(user)}
+        try:
+            with _session() as session:
+                user = session.query(db_module.User).filter_by(email=email).one_or_none()
+                if user is None or not _verify_password(password, user.hashed_password):
+                    raise HTTPException(status_code=401, detail="Invalid credentials")
+                if getattr(user, "created_at", None) is None:
+                    user.created_at = datetime.utcnow()
+                    session.flush()
+                if (
+                    email == SIMUNET_CREATOR_EMAIL
+                    and hasattr(user, "is_admin")
+                    and not _user_is_admin(user, email)
+                ):
+                    user.is_admin = True  # type: ignore[assignment]
+                    session.flush()
+                return {"ok": True, "user": _serialize_user(user)}
+        except HTTPException:
+            raise
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            _handle_db_failure(exc, "login")
 
     state = _load_state()
     users = state.setdefault("users", {})
