@@ -86,6 +86,7 @@ MSFS_MISSIONS = [
         "title": "Cascade Relief Hop",
         "payload": "Medical relief packages",
         "weight_lbs": (5200, 6800),
+        "deadline_hours": (4, 9),
         "departure": "KSEA",
         "arrival": "KPDX",
         "notes": "Coordinate with Portland ground crew for hand-off on arrival.",
@@ -94,6 +95,7 @@ MSFS_MISSIONS = [
         "title": "Northern Lights Cargo",
         "payload": "Navigation beacons",
         "weight_lbs": (3800, 5400),
+        "deadline_hours": (6, 12),
         "departure": "PAFA",
         "arrival": "PANC",
         "notes": "Watch for icing along the Alaska Range and maintain radio contact with Anchorage Center.",
@@ -102,6 +104,7 @@ MSFS_MISSIONS = [
         "title": "Island Supply Shuttle",
         "payload": "Island hospital supplies",
         "weight_lbs": (2600, 4200),
+        "deadline_hours": (5, 10),
         "departure": "PHNL",
         "arrival": "PHOG",
         "notes": "Plan for strong trade winds on approach into Maui; deliver by dusk for coastal clinics.",
@@ -110,6 +113,7 @@ MSFS_MISSIONS = [
         "title": "Rocky Mountain Survey",
         "payload": "Aerial mapping equipment",
         "weight_lbs": (3100, 4700),
+        "deadline_hours": (8, 14),
         "departure": "KDEN",
         "arrival": "KSLC",
         "notes": "Collect terrain imagery en route over the Uintas before descending into Salt Lake City.",
@@ -118,6 +122,7 @@ MSFS_MISSIONS = [
         "title": "Arctic Research Drop",
         "payload": "Scientific instruments",
         "weight_lbs": (4500, 6200),
+        "deadline_hours": (7, 16),
         "departure": "BGTL",
         "arrival": "BGSF",
         "notes": "Limited daylight window — prioritize timely departure and monitor runway conditions in Greenland.",
@@ -126,9 +131,28 @@ MSFS_MISSIONS = [
         "title": "Coastal Weather Run",
         "payload": "Automated weather stations",
         "weight_lbs": (3300, 5100),
+        "deadline_hours": (3, 7),
         "departure": "CYVR",
         "arrival": "CYYJ",
         "notes": "Distribute payload to Victoria field team; low ceilings expected over Strait of Georgia.",
+    },
+    {
+        "title": "High Desert Calibration",
+        "payload": "Survey calibration sensors",
+        "weight_lbs": (3400, 5200),
+        "deadline_hours": (5, 11),
+        "departure": "KABQ",
+        "arrival": "KPHX",
+        "notes": "Calibrate the new desert survey array before the afternoon thermal activity picks up.",
+    },
+    {
+        "title": "Great Lakes Ferry",
+        "payload": "Freshwater research buoys",
+        "weight_lbs": (2900, 4500),
+        "deadline_hours": (4, 8),
+        "departure": "KDTW",
+        "arrival": "CYYZ",
+        "notes": "Toronto team will meet you at the Cargo 6 stand — keep customs documents ready for quick transfer.",
     },
 ]
 
@@ -399,24 +423,68 @@ def _persist_job(
     return _serialize_job(job_entry)
 
 
+def _resolve_weight(weight_spec: Any) -> float:
+    """Convert a mission weight specification into a concrete pound value."""
+
+    default_low, default_high = 3000.0, 6500.0
+
+    if isinstance(weight_spec, tuple) and len(weight_spec) == 2:
+        low, high = weight_spec
+        try:
+            low_f = float(low)
+            high_f = float(high)
+        except (TypeError, ValueError):
+            low_f, high_f = default_low, default_high
+    elif isinstance(weight_spec, (int, float)):
+        low_f = high_f = float(weight_spec)
+    else:
+        low_f, high_f = default_low, default_high
+
+    if high_f < low_f:
+        low_f, high_f = high_f, low_f
+
+    if low_f == high_f:
+        return round(low_f, 1)
+
+    return round(random.uniform(low_f, high_f), 1)
+
+
+def _resolve_deadline(now: datetime, hours_spec: Any) -> datetime:
+    """Resolve a deadline relative to *now* using an hours specification."""
+
+    default_range = (4, 12)
+    if isinstance(hours_spec, tuple) and len(hours_spec) == 2:
+        start, end = hours_spec
+        try:
+            start_i = int(start)
+            end_i = int(end)
+        except (TypeError, ValueError):
+            start_i, end_i = default_range
+    elif isinstance(hours_spec, (int, float)):
+        start_i = end_i = int(hours_spec)
+    else:
+        start_i, end_i = default_range
+
+    if end_i < start_i:
+        start_i, end_i = end_i, start_i
+
+    if start_i == end_i:
+        offset = start_i
+    else:
+        offset = random.randint(start_i, end_i)
+
+    offset = max(1, offset)
+    return now + timedelta(hours=offset)
+
+
 def _build_simunet_job(now: datetime | None = None) -> dict[str, Any]:
     """Create a randomized Microsoft Flight Simulator job blueprint."""
 
     current = now or datetime.utcnow()
     mission = random.choice(MSFS_MISSIONS)
 
-    weight_spec = mission.get("weight_lbs")
-    weight_value: float | None
-    if isinstance(weight_spec, tuple) and len(weight_spec) == 2:
-        low, high = weight_spec
-        weight_value = round(random.uniform(float(low), float(high)), 1)
-    elif isinstance(weight_spec, (int, float)):
-        weight_value = float(weight_spec)
-    else:
-        weight_value = None
-
-    deadline_offset = random.randint(3, 18)
-    deadline = current + timedelta(hours=deadline_offset)
+    weight_value = _resolve_weight(mission.get("weight_lbs"))
+    deadline = _resolve_deadline(current, mission.get("deadline_hours"))
 
     base_notes = mission.get("notes") or ""
     extra_note = "SimuNet Mission Control auto-generated assignment."
