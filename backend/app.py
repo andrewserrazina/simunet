@@ -14,6 +14,7 @@ import importlib.util
 import random
 import tempfile
 import traceback
+import time
 from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -27,13 +28,18 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 try:  # pragma: no cover - optional when running without SQLAlchemy
     from sqlalchemy.orm import joinedload
+    from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 except Exception:  # pragma: no cover - keep optional dependency soft
     joinedload = None  # type: ignore[assignment]
+    DBAPIError = SQLAlchemyError = Exception  # type: ignore[assignment]
 
 app = FastAPI()
 
 DB_AVAILABLE = False
 DB_ERROR = None
+STORAGE_MODE = "json"
+_LAST_DB_CHECK = 0.0
+DB_RECOVERY_INTERVAL = 5.0
 
 BACKEND_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BACKEND_DIR.parent
@@ -116,6 +122,54 @@ except Exception as exc:  # pragma: no cover - keep API responsive on DB failure
     DB_AVAILABLE, DB_ERROR = False, str(exc)
 
 USE_DB = bool(DB_AVAILABLE and getattr(db_module, "SessionLocal", None))
+STORAGE_MODE = "database" if USE_DB else "json"
+
+
+def _database_configured() -> bool:
+    """Return True when a database URL is available for use."""
+
+    return bool(getattr(db_module, "DATABASE_URL", ""))
+
+
+def _refresh_db_status(*, force: bool = False) -> bool:
+    """Attempt to (re)enable database access when possible."""
+
+    global USE_DB, DB_AVAILABLE, DB_ERROR, STORAGE_MODE, _LAST_DB_CHECK
+
+    if USE_DB:
+        return True
+
+    if not _database_configured():
+        return False
+
+    now = time.monotonic()
+    if not force and now - _LAST_DB_CHECK < DB_RECOVERY_INTERVAL:
+        return False
+
+    _LAST_DB_CHECK = now
+
+    try:
+        ok, error = db_module.ensure_db()
+    except Exception as exc:  # pragma: no cover - log and remain in fallback mode
+        DB_AVAILABLE = False
+        DB_ERROR = str(exc)
+        USE_DB = False
+        STORAGE_MODE = "json"
+        return False
+
+    DB_AVAILABLE = bool(ok)
+    DB_ERROR = error
+    USE_DB = bool(ok and getattr(db_module, "SessionLocal", None))
+    STORAGE_MODE = "database" if USE_DB else "json"
+    return USE_DB
+
+
+def _using_db() -> bool:
+    """Check if the database should be treated as the primary store."""
+
+    if USE_DB:
+        return True
+    return _refresh_db_status(force=False)
 
 
 STATE_PATH = _resolve_state_path()
@@ -198,7 +252,7 @@ MSFS_MISSIONS = [
 ]
 
 MSFS_DEFAULT_LEGS = [
-    {"seq": 1, "mode": "flight"},
+    {"seq": 1, "mode": "flight", "origin_airport": None, "destination_airport": None},
 ]
 
 
@@ -229,14 +283,38 @@ def _load_state() -> dict[str, Any]:
         if STATE_PATH != TMP_STATE_PATH and TMP_STATE_PATH.exists():
             STATE_PATH = TMP_STATE_PATH
             return _load_state()
-        return {"users": {}, "jobs": {}, "flights": {}, "telemetry": {}}
+        return {
+            "users": {},
+            "jobs": {},
+            "flights": {},
+            "telemetry": {},
+            "virtual_airlines": {},
+            "teams": {},
+            "team_memberships": {},
+        }
     except PermissionError:
         if STATE_PATH != TMP_STATE_PATH:
             STATE_PATH = TMP_STATE_PATH
             return _load_state()
-        return {"users": {}, "jobs": {}, "flights": {}, "telemetry": {}}
+        return {
+            "users": {},
+            "jobs": {},
+            "flights": {},
+            "telemetry": {},
+            "virtual_airlines": {},
+            "teams": {},
+            "team_memberships": {},
+        }
     except json.JSONDecodeError:
-        return {"users": {}, "jobs": {}, "flights": {}, "telemetry": {}}
+        return {
+            "users": {},
+            "jobs": {},
+            "flights": {},
+            "telemetry": {},
+            "virtual_airlines": {},
+            "teams": {},
+            "team_memberships": {},
+        }
 
 
 def _save_state(state: dict[str, Any]) -> None:
@@ -268,11 +346,13 @@ def _save_state(state: dict[str, Any]) -> None:
 def _handle_db_failure(exc: Exception, context: str | None = None) -> None:
     """Disable database usage and log the failure before falling back to JSON state."""
 
-    global USE_DB, DB_AVAILABLE, DB_ERROR
+    global USE_DB, DB_AVAILABLE, DB_ERROR, STORAGE_MODE, _LAST_DB_CHECK
 
     DB_AVAILABLE = False
     USE_DB = False
     DB_ERROR = str(exc)
+    STORAGE_MODE = "json"
+    _LAST_DB_CHECK = 0.0
 
     context_label = f" during {context}" if context else ""
     message = f"DB failure{context_label}: {exc}"
@@ -325,7 +405,9 @@ def _verify_password(password: str, stored: str) -> bool:
 
 @contextmanager
 def _session():
-    if not USE_DB:
+    global USE_DB
+
+    if not USE_DB and not _refresh_db_status(force=True):
         raise RuntimeError("Database not configured")
     session_factory = getattr(db_module, "SessionLocal", None)
     if session_factory is None:
@@ -362,12 +444,212 @@ def _serialize_point(point: Any) -> dict[str, Any]:
     }
 
 
+def _normalize_airport_code(value: str | None) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip().upper()
+    if not text:
+        return None
+    return text[:16]
+
+
+def _serialize_membership(member: Any) -> dict[str, Any]:
+    if isinstance(member, dict):
+        return {
+            "id": member.get("id"),
+            "team_id": member.get("team_id"),
+            "email": member.get("email"),
+            "role": member.get("role"),
+            "joined_at": member.get("joined_at"),
+        }
+
+    return {
+        "id": getattr(member, "id", None),
+        "team_id": getattr(member, "team_id", None),
+        "email": getattr(member, "email", None),
+        "role": getattr(member, "role", None),
+        "joined_at": _isoformat(getattr(member, "joined_at", None)),
+    }
+
+
+def _serialize_team(team: Any, *, include_members: bool = False) -> dict[str, Any]:
+    if isinstance(team, dict):
+        members = []
+        if include_members:
+            raw_members = team.get("members", [])
+            if isinstance(raw_members, list):
+                members = [
+                    _serialize_membership(member)
+                    for member in raw_members
+                ]
+        return {
+            "id": team.get("id") or team.get("team_id"),
+            "name": team.get("name"),
+            "description": team.get("description"),
+            "airline_id": team.get("airline_id"),
+            "airline_name": team.get("airline_name"),
+            "created_at": team.get("created_at"),
+            "created_by": team.get("created_by"),
+            "member_count": team.get("member_count", len(members)),
+            "members": members if include_members else None,
+        }
+
+    members = []
+    if include_members:
+        members = [
+            _serialize_membership(member)
+            for member in getattr(team, "members", []) or []
+        ]
+
+    airline = getattr(team, "airline", None)
+
+    return {
+        "id": getattr(team, "id", None),
+        "name": getattr(team, "name", None),
+        "description": getattr(team, "description", None),
+        "airline_id": getattr(team, "airline_id", None),
+        "airline_name": getattr(airline, "name", None) if airline is not None else None,
+        "created_at": _isoformat(getattr(team, "created_at", None)),
+        "created_by": getattr(team, "created_by", None),
+        "member_count": len(getattr(team, "members", []) or []),
+        "members": members if include_members else None,
+    }
+
+
+def _serialize_airline(
+    airline: Any,
+    *,
+    include_teams: bool = False,
+    team_lookup: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    teams: list[dict[str, Any]] = []
+
+    if isinstance(airline, dict):
+        team_ids = list(airline.get("team_ids", []))
+        if include_teams:
+            lookup = team_lookup or {}
+            for team_id in team_ids:
+                team_entry = lookup.get(team_id)
+                if team_entry:
+                    teams.append(_serialize_team(team_entry, include_members=False))
+        return {
+            "id": airline.get("id"),
+            "name": airline.get("name"),
+            "description": airline.get("description"),
+            "created_by": airline.get("created_by"),
+            "created_at": airline.get("created_at"),
+            "team_count": airline.get("team_count", len(team_ids)),
+            "teams": teams if include_teams else None,
+        }
+
+    if include_teams:
+        teams = [
+            _serialize_team(team, include_members=False)
+            for team in getattr(airline, "teams", []) or []
+        ]
+
+    return {
+        "id": getattr(airline, "id", None),
+        "name": getattr(airline, "name", None),
+        "description": getattr(airline, "description", None),
+        "created_by": getattr(airline, "created_by", None),
+        "created_at": _isoformat(getattr(airline, "created_at", None)),
+        "team_count": len(getattr(airline, "teams", []) or []),
+        "teams": teams if include_teams else None,
+    }
+
+
+def _membership_context_db(session: Any, email: str) -> tuple[set[str], set[str]]:
+    teams: set[str] = set()
+    airlines: set[str] = set()
+
+    membership_cls = getattr(db_module, "TeamMembership", None)
+    if membership_cls is None:
+        return teams, airlines
+
+    query = session.query(membership_cls)
+    if joinedload is not None and hasattr(membership_cls, "team"):
+        query = query.options(joinedload(membership_cls.team))
+    rows = query.filter(membership_cls.email == email).all()
+
+    for row in rows:
+        team_id = getattr(row, "team_id", None)
+        if team_id:
+            teams.add(team_id)
+        team_obj = getattr(row, "team", None)
+        if team_obj is not None:
+            airline_id = getattr(team_obj, "airline_id", None)
+            if airline_id:
+                airlines.add(airline_id)
+        elif team_id:
+            team_cls = getattr(db_module, "Team", None)
+            if team_cls is not None:
+                team = session.query(team_cls).filter_by(id=team_id).one_or_none()
+                if team is not None and getattr(team, "airline_id", None):
+                    airlines.add(team.airline_id)
+
+    return teams, airlines
+
+
+def _membership_context_state(state: dict[str, Any], email: str) -> tuple[set[str], set[str]]:
+    teams: set[str] = set()
+    airlines: set[str] = set()
+
+    memberships = state.get("team_memberships", {})
+    teams_state = state.get("teams", {})
+
+    for record in memberships.values():
+        if _normalize_email(str(record.get("email", ""))) != email:
+            continue
+        team_id = record.get("team_id")
+        if not team_id:
+            continue
+        teams.add(team_id)
+        team_entry = teams_state.get(team_id)
+        if team_entry and team_entry.get("airline_id"):
+            airlines.add(team_entry["airline_id"])
+
+    return teams, airlines
+
+
+def _membership_context(
+    email: str | None,
+    *,
+    session: Any | None = None,
+    state: dict[str, Any] | None = None,
+) -> tuple[set[str], set[str]]:
+    if not email:
+        return set(), set()
+    normalized = _normalize_email(str(email))
+
+    if _using_db():
+        if session is not None:
+            return _membership_context_db(session, normalized)
+        with _session() as session_obj:
+            return _membership_context_db(session_obj, normalized)
+
+    data = state or _load_state()
+    return _membership_context_state(data, normalized)
+
+
 def _serialize_job(job: Any) -> dict[str, Any]:
     def _status(assignee: str | None) -> str:
         return "claimed" if assignee else "open"
 
     if isinstance(job, dict):
         legs = job.get("legs") or []
+        legs_payload: list[dict[str, Any]] = []
+        for leg in legs:
+            if not isinstance(leg, dict):
+                continue
+            legs_payload.append(
+                {
+                    "seq": int(leg.get("seq", 1) or 1),
+                    "mode": leg.get("mode"),
+                    "origin_airport": leg.get("origin_airport"),
+                    "destination_airport": leg.get("destination_airport"),
+                }
+            )
         assigned_to = job.get("assigned_to")
         if assigned_to:
             assigned_to = _normalize_email(str(assigned_to))
@@ -388,14 +670,25 @@ def _serialize_job(job: Any) -> dict[str, Any]:
             "created_at": job.get("created_at"),
             "created_by": created_by,
             "assigned_to": assigned_to,
-            "legs": legs,
+            "team_id": job.get("team_id"),
+            "team_name": job.get("team_name"),
+            "airline_id": job.get("airline_id"),
+            "airline_name": job.get("airline_name"),
+            "legs": legs_payload,
         }
         data["status"] = _status(assigned_to)
         return data
 
     legs: list[dict[str, Any]] = []
     for leg in getattr(job, "legs", []) or []:
-        legs.append({"seq": getattr(leg, "seq", 0), "mode": getattr(leg, "mode", "")})
+        legs.append(
+            {
+                "seq": getattr(leg, "seq", 0),
+                "mode": getattr(leg, "mode", ""),
+                "origin_airport": getattr(leg, "origin_airport", None),
+                "destination_airport": getattr(leg, "destination_airport", None),
+            }
+        )
 
     detail = getattr(job, "detail", None)
     created_by = getattr(detail, "created_by", None) if detail is not None else getattr(job, "created_by", None)
@@ -413,6 +706,20 @@ def _serialize_job(job: Any) -> dict[str, Any]:
 
     created_at_source = getattr(detail, "created_at", None) if detail is not None else getattr(job, "created_at", None)
 
+    team_id = None
+    team_name = None
+    airline_id = None
+    airline_name = None
+    if detail is not None:
+        team_id = getattr(detail, "team_id", None)
+        airline_id = getattr(detail, "airline_id", None)
+        team_rel = getattr(detail, "team", None)
+        airline_rel = getattr(detail, "airline", None)
+        if team_rel is not None and team_name is None:
+            team_name = getattr(team_rel, "name", None)
+        if airline_rel is not None and airline_name is None:
+            airline_name = getattr(airline_rel, "name", None)
+
     return {
         "job_id": getattr(job, "job_id", None),
         "title": getattr(detail, "title", None) if detail is not None else getattr(job, "title", None),
@@ -427,6 +734,10 @@ def _serialize_job(job: Any) -> dict[str, Any]:
         "created_by": created_by,
         "assigned_to": assigned_to,
         "status": _status(assigned_to),
+        "team_id": team_id,
+        "team_name": team_name,
+        "airline_id": airline_id,
+        "airline_name": airline_name,
         "legs": legs,
     }
 
@@ -446,6 +757,10 @@ def _persist_job(
     notes: str | None,
     legs: list[dict[str, Any]],
     assigned_to: str | None = None,
+    team_id: str | None = None,
+    team_name: str | None = None,
+    airline_id: str | None = None,
+    airline_name: str | None = None,
 ) -> dict[str, Any]:
     """Persist a job in either the database or JSON fallback store."""
 
@@ -457,7 +772,10 @@ def _persist_job(
     if isinstance(deadline_dt, datetime) and deadline_dt.tzinfo is not None:
         deadline_dt = deadline_dt.astimezone(timezone.utc).replace(tzinfo=None)
 
-    if USE_DB:
+    normalized_team_id = team_id
+    normalized_airline_id = airline_id
+
+    if _using_db():
         with _session() as session:
             job = db_module.Job(job_id=job_id)
             session.add(job)
@@ -477,6 +795,8 @@ def _persist_job(
                     created_by=normalized_creator,
                     created_at=created_at,
                     assigned_to=normalized_assignee,
+                    team_id=normalized_team_id,
+                    airline_id=normalized_airline_id,
                 )
                 job.detail = detail_model
                 session.add(detail_model)
@@ -489,10 +809,14 @@ def _persist_job(
                     existing_owner.email = normalized_assignee
 
             for leg in legs or []:
+                origin = _normalize_airport_code(leg.get("origin_airport"))
+                destination = _normalize_airport_code(leg.get("destination_airport"))
                 leg_model = db_module.Leg(
                     job=job,
                     seq=int(leg.get("seq", 1) or 1),
                     mode=str(leg.get("mode", "flight") or "flight"),
+                    origin_airport=origin,
+                    destination_airport=destination,
                 )
                 session.add(leg_model)
 
@@ -515,7 +839,19 @@ def _persist_job(
         "created_at": _isoformat(created_at),
         "created_by": normalized_creator,
         "assigned_to": normalized_assignee,
-        "legs": legs or [],
+        "team_id": normalized_team_id,
+        "team_name": team_name,
+        "airline_id": normalized_airline_id,
+        "airline_name": airline_name,
+        "legs": [
+            {
+                "seq": int(leg.get("seq", 1) or 1),
+                "mode": str(leg.get("mode", "flight") or "flight"),
+                "origin_airport": _normalize_airport_code(leg.get("origin_airport")),
+                "destination_airport": _normalize_airport_code(leg.get("destination_airport")),
+            }
+            for leg in (legs or [])
+        ],
     }
     jobs[job_id] = job_entry
     _save_state(state)
@@ -590,6 +926,11 @@ def _build_simunet_job(now: datetime | None = None) -> dict[str, Any]:
     notes = f"{base_notes}\n\n{extra_note}" if base_notes else extra_note
 
     legs = [dict(leg) for leg in MSFS_DEFAULT_LEGS]
+    for leg in legs:
+        if not leg.get("origin_airport"):
+            leg["origin_airport"] = mission.get("departure")
+        if not leg.get("destination_airport"):
+            leg["destination_airport"] = mission.get("arrival")
 
     return {
         "title": mission.get("title", "Microsoft Flight Simulator Job"),
@@ -660,7 +1001,7 @@ def _require_admin(actor_email: str | None) -> str:
 
     normalized = _normalize_email(str(actor_email))
 
-    if USE_DB:
+    if _using_db():
         with _session() as session:
             user = session.query(db_module.User).filter_by(email=normalized).one_or_none()
             if user is None:
@@ -680,7 +1021,7 @@ def _require_admin(actor_email: str | None) -> str:
 
 
 def _count_admins_db(session: Any) -> int:
-    if not USE_DB:
+    if not _using_db():
         return 0
     user_model = getattr(db_module, "User", None)
     if user_model is None:
@@ -718,6 +1059,8 @@ class JobLegPayload(BaseModel):
 
     seq: int = Field(1, ge=1)
     mode: str = Field("flight", min_length=1, max_length=32)
+    origin_airport: str | None = Field(default=None, min_length=3, max_length=16)
+    destination_airport: str | None = Field(default=None, min_length=3, max_length=16)
 
 
 class JobCreatePayload(BaseModel):
@@ -734,6 +1077,8 @@ class JobCreatePayload(BaseModel):
     created_by: EmailAddress = Field(..., min_length=3, max_length=320)
     assigned_to: EmailAddress | None = Field(default=None, min_length=3, max_length=320)
     legs: list[JobLegPayload] = Field(default_factory=list)
+    team_id: str | None = Field(default=None, min_length=3, max_length=64)
+    airline_id: str | None = Field(default=None, min_length=3, max_length=64)
 
 
 class JobAutoPayload(BaseModel):
@@ -746,6 +1091,520 @@ class JobClaimPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     email: EmailAddress = Field(..., min_length=3, max_length=320)
+
+
+class AirlineCreatePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., min_length=3, max_length=255)
+    description: str | None = Field(default=None, max_length=800)
+    created_by: EmailAddress = Field(..., min_length=3, max_length=320)
+
+
+class TeamCreatePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., min_length=2, max_length=255)
+    description: str | None = Field(default=None, max_length=600)
+    created_by: EmailAddress = Field(..., min_length=3, max_length=320)
+    airline_id: str | None = Field(default=None, min_length=3, max_length=64)
+
+
+class TeamJoinPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailAddress = Field(..., min_length=3, max_length=320)
+    role: str | None = Field(default=None, max_length=64)
+
+
+class TeamLeavePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailAddress = Field(..., min_length=3, max_length=320)
+
+
+def _ensure_state_user(state: dict[str, Any], email: str) -> dict[str, Any]:
+    users = state.setdefault("users", {})
+    user = users.get(email)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+@app.post("/airlines", status_code=status.HTTP_201_CREATED)
+def create_airline(payload: AirlineCreatePayload) -> dict[str, Any]:
+    """Create a virtual airline for coordinating multi-flight missions."""
+
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Airline name is required")
+
+    description = payload.description.strip() if payload.description else None
+    creator_email = _normalize_email(str(payload.created_by))
+
+    if _using_db():
+        airline_model = getattr(db_module, "VirtualAirline", None)
+        if airline_model is None:
+            raise HTTPException(status_code=500, detail="Virtual airline support unavailable")
+        with _session() as session:
+            user = session.query(db_module.User).filter_by(email=creator_email).one_or_none()
+            if user is None:
+                raise HTTPException(status_code=404, detail="User not found")
+            if not _user_is_admin(user, creator_email):
+                raise HTTPException(status_code=403, detail="Admin privileges required to create a virtual airline")
+
+            existing = session.query(airline_model).filter(airline_model.name.ilike(name)).one_or_none()
+            if existing is not None:
+                raise HTTPException(status_code=409, detail="Virtual airline name already exists")
+
+            airline_id = uuid.uuid4().hex[:12]
+            record = airline_model(
+                id=airline_id,
+                name=name,
+                description=description,
+                created_by=creator_email,
+                created_at=datetime.utcnow(),
+            )
+            session.add(record)
+            session.flush()
+            session.refresh(record)
+            return {"ok": True, "airline": _serialize_airline(record, include_teams=True)}
+
+    state = _load_state()
+    user = _ensure_state_user(state, creator_email)
+    if not _user_is_admin(user, creator_email):
+        raise HTTPException(status_code=403, detail="Admin privileges required to create a virtual airline")
+
+    airlines = state.setdefault("virtual_airlines", {})
+    normalized_name = name.lower()
+    for entry in airlines.values():
+        if str(entry.get("name", "")).strip().lower() == normalized_name:
+            raise HTTPException(status_code=409, detail="Virtual airline name already exists")
+
+    airline_id = uuid.uuid4().hex[:12]
+    created_at = _now_iso()
+    airlines[airline_id] = {
+        "id": airline_id,
+        "name": name,
+        "description": description,
+        "created_by": creator_email,
+        "created_at": created_at,
+        "team_ids": [],
+    }
+    _save_state(state)
+    return {"ok": True, "airline": _serialize_airline(airlines[airline_id])}
+
+
+@app.get("/airlines")
+def list_airlines(
+    email: EmailAddress | None = Query(default=None),
+    include_teams: bool = Query(default=False, alias="includeTeams"),
+) -> dict[str, Any]:
+    """List virtual airlines and optionally include their teams."""
+
+    filter_email = _normalize_email(str(email)) if email else None
+    airlines: list[dict[str, Any]] = []
+
+    if _using_db():
+        airline_model = getattr(db_module, "VirtualAirline", None)
+        if airline_model is None:
+            raise HTTPException(status_code=500, detail="Virtual airline support unavailable")
+        with _session() as session:
+            _, airline_memberships = _membership_context(filter_email, session=session)
+            query = session.query(airline_model)
+            if joinedload is not None and include_teams and hasattr(airline_model, "teams"):
+                query = query.options(joinedload(airline_model.teams))
+            records = query.order_by(airline_model.name.asc()).all()
+            for record in records:
+                serialized = _serialize_airline(record, include_teams=include_teams)
+                serialized["is_member"] = bool(filter_email and serialized.get("id") in airline_memberships)
+                airlines.append(serialized)
+            response: dict[str, Any] = {"ok": True, "airlines": airlines}
+            if filter_email:
+                response["memberships"] = sorted(airline_memberships)
+            return response
+
+    state = _load_state()
+    _, airline_memberships = _membership_context(filter_email, state=state)
+    airlines_state = state.get("virtual_airlines", {})
+    teams_state = state.get("teams", {})
+
+    for airline_id, entry in sorted(airlines_state.items(), key=lambda item: str(item[1].get("name", "")).lower()):
+        serialized = _serialize_airline(entry, include_teams=include_teams, team_lookup=teams_state)
+        serialized["is_member"] = bool(filter_email and airline_id in airline_memberships)
+        airlines.append(serialized)
+
+    response = {"ok": True, "airlines": airlines}
+    if filter_email:
+        response["memberships"] = sorted(airline_memberships)
+    return response
+
+
+@app.post("/teams", status_code=status.HTTP_201_CREATED)
+def create_team(payload: TeamCreatePayload) -> dict[str, Any]:
+    """Create a mission team that can collaborate on virtual airline jobs."""
+
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Team name is required")
+
+    description = payload.description.strip() if payload.description else None
+    creator_email = _normalize_email(str(payload.created_by))
+    airline_id = payload.airline_id.strip() if payload.airline_id else None
+
+    if _using_db():
+        team_model = getattr(db_module, "Team", None)
+        membership_model = getattr(db_module, "TeamMembership", None)
+        airline_model = getattr(db_module, "VirtualAirline", None)
+        if team_model is None or membership_model is None:
+            raise HTTPException(status_code=500, detail="Team support unavailable")
+
+        with _session() as session:
+            user = session.query(db_module.User).filter_by(email=creator_email).one_or_none()
+            if user is None:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            is_admin = _user_is_admin(user, creator_email)
+            team_memberships, airline_memberships = _membership_context(creator_email, session=session)
+
+            airline_name = None
+            airline_record = None
+            if airline_id:
+                if airline_model is None:
+                    raise HTTPException(status_code=500, detail="Virtual airline support unavailable")
+                airline_record = session.query(airline_model).filter_by(id=airline_id).one_or_none()
+                if airline_record is None:
+                    raise HTTPException(status_code=404, detail="Virtual airline not found")
+                airline_name = getattr(airline_record, "name", None)
+                if not is_admin and airline_id not in airline_memberships:
+                    raise HTTPException(status_code=403, detail="Join the airline before creating teams for it")
+
+            existing = session.query(team_model).filter(team_model.name.ilike(name)).one_or_none()
+            if existing is not None:
+                raise HTTPException(status_code=409, detail="Team name already exists")
+
+            team_id = uuid.uuid4().hex[:12]
+            record = team_model(
+                id=team_id,
+                name=name,
+                description=description,
+                created_by=creator_email,
+                created_at=datetime.utcnow(),
+                airline_id=airline_id,
+            )
+            session.add(record)
+            session.flush()
+
+            membership = membership_model(
+                team_id=team_id,
+                email=creator_email,
+                role="owner",
+                joined_at=datetime.utcnow(),
+            )
+            session.add(membership)
+            session.flush()
+            session.refresh(record)
+
+            serialized = _serialize_team(record, include_members=True)
+            if airline_name and serialized.get("airline_name") is None:
+                serialized["airline_name"] = airline_name
+            return {
+                "ok": True,
+                "team": serialized,
+                "membership": _serialize_membership(membership),
+            }
+
+    state = _load_state()
+    user = _ensure_state_user(state, creator_email)
+    is_admin = _user_is_admin(user, creator_email)
+
+    teams_state = state.setdefault("teams", {})
+    memberships_state = state.setdefault("team_memberships", {})
+    airlines_state = state.setdefault("virtual_airlines", {})
+
+    team_memberships, airline_memberships = _membership_context(creator_email, state=state)
+
+    airline_name = None
+    if airline_id:
+        airline_entry = airlines_state.get(airline_id)
+        if airline_entry is None:
+            raise HTTPException(status_code=404, detail="Virtual airline not found")
+        airline_name = airline_entry.get("name")
+        if not is_admin and airline_id not in airline_memberships:
+            raise HTTPException(status_code=403, detail="Join the airline before creating teams for it")
+
+    normalized_name = name.lower()
+    for entry in teams_state.values():
+        if str(entry.get("name", "")).strip().lower() == normalized_name:
+            raise HTTPException(status_code=409, detail="Team name already exists")
+
+    team_id = uuid.uuid4().hex[:12]
+    created_at = _now_iso()
+    team_entry = {
+        "id": team_id,
+        "name": name,
+        "description": description,
+        "created_by": creator_email,
+        "created_at": created_at,
+        "airline_id": airline_id,
+        "airline_name": airline_name,
+        "member_count": 1,
+    }
+    teams_state[team_id] = team_entry
+
+    membership_id = uuid.uuid4().hex[:12]
+    membership_entry = {
+        "id": membership_id,
+        "team_id": team_id,
+        "email": creator_email,
+        "role": "owner",
+        "joined_at": created_at,
+    }
+    memberships_state[membership_id] = membership_entry
+
+    if airline_id:
+        airline_entry = airlines_state.setdefault(airline_id, {"team_ids": []})
+        team_ids = airline_entry.setdefault("team_ids", [])
+        if team_id not in team_ids:
+            team_ids.append(team_id)
+
+    _save_state(state)
+
+    serialized_team = _serialize_team(
+        {**team_entry, "members": [_serialize_membership(membership_entry)]},
+        include_members=True,
+    )
+    return {"ok": True, "team": serialized_team, "membership": _serialize_membership(membership_entry)}
+
+
+@app.get("/teams")
+def list_teams(
+    email: EmailAddress | None = Query(default=None),
+    airline_id: str | None = Query(default=None, alias="airline"),
+    include_members: bool = Query(default=False, alias="includeMembers"),
+) -> dict[str, Any]:
+    """Return available teams, optionally filtered by airline or annotated by membership."""
+
+    filter_email = _normalize_email(str(email)) if email else None
+    filter_airline = airline_id.strip() if airline_id else None
+    teams_payload: list[dict[str, Any]] = []
+
+    if _using_db():
+        team_model = getattr(db_module, "Team", None)
+        if team_model is None:
+            raise HTTPException(status_code=500, detail="Team support unavailable")
+        with _session() as session:
+            team_memberships, airline_memberships = _membership_context(filter_email, session=session)
+            query = session.query(team_model)
+            if filter_airline:
+                query = query.filter(team_model.airline_id == filter_airline)
+            if joinedload is not None:
+                query = query.options(joinedload(team_model.airline))
+                if include_members and hasattr(team_model, "members"):
+                    query = query.options(joinedload(team_model.members))
+            records = query.order_by(team_model.name.asc()).all()
+            for record in records:
+                serialized = _serialize_team(record, include_members=include_members)
+                serialized["is_member"] = bool(filter_email and serialized.get("id") in team_memberships)
+                teams_payload.append(serialized)
+            response: dict[str, Any] = {"ok": True, "teams": teams_payload}
+            if filter_email:
+                response["memberships"] = sorted(team_memberships)
+                response["airline_memberships"] = sorted(airline_memberships)
+            return response
+
+    state = _load_state()
+    teams_state = state.get("teams", {})
+    memberships_state = state.get("team_memberships", {})
+    airlines_state = state.get("virtual_airlines", {})
+    team_memberships, airline_memberships = _membership_context(filter_email, state=state)
+
+    def _members_for_team(team_id: str) -> list[dict[str, Any]]:
+        members: list[dict[str, Any]] = []
+        for membership in memberships_state.values():
+            if membership.get("team_id") == team_id:
+                members.append(_serialize_membership(membership))
+        members.sort(key=lambda item: str(item.get("email", "")))
+        return members
+
+    for team_id, entry in sorted(teams_state.items(), key=lambda item: str(item[1].get("name", "")).lower()):
+        if filter_airline and entry.get("airline_id") != filter_airline:
+            continue
+        team_copy = dict(entry)
+        if include_members:
+            team_copy["members"] = _members_for_team(team_id)
+            team_copy["member_count"] = len(team_copy["members"])
+        else:
+            team_copy["member_count"] = sum(1 for membership in memberships_state.values() if membership.get("team_id") == team_id)
+        if team_copy.get("airline_id") and not team_copy.get("airline_name"):
+            airline_entry = airlines_state.get(team_copy["airline_id"])
+            if airline_entry is not None:
+                team_copy["airline_name"] = airline_entry.get("name")
+        serialized = _serialize_team(team_copy, include_members=include_members)
+        serialized["is_member"] = bool(filter_email and team_id in team_memberships)
+        teams_payload.append(serialized)
+
+    response = {"ok": True, "teams": teams_payload}
+    if filter_email:
+        response["memberships"] = sorted(team_memberships)
+        response["airline_memberships"] = sorted(airline_memberships)
+    return response
+
+
+@app.post("/teams/{team_id}/join", status_code=status.HTTP_201_CREATED)
+def join_team(team_id: str, payload: TeamJoinPayload) -> dict[str, Any]:
+    """Join an existing mission team."""
+
+    normalized_team = team_id.strip()
+    normalized_email = _normalize_email(str(payload.email))
+    role = payload.role.strip() if payload.role else None
+
+    if _using_db():
+        membership_model = getattr(db_module, "TeamMembership", None)
+        team_model = getattr(db_module, "Team", None)
+        if membership_model is None or team_model is None:
+            raise HTTPException(status_code=500, detail="Team support unavailable")
+        with _session() as session:
+            user = session.query(db_module.User).filter_by(email=normalized_email).one_or_none()
+            if user is None:
+                raise HTTPException(status_code=404, detail="User not found")
+            team = session.query(team_model).filter_by(id=normalized_team).one_or_none()
+            if team is None:
+                raise HTTPException(status_code=404, detail="Team not found")
+
+            existing = (
+                session.query(membership_model)
+                .filter_by(team_id=normalized_team, email=normalized_email)
+                .one_or_none()
+            )
+            if existing is not None:
+                return {
+                    "ok": True,
+                    "team": _serialize_team(team, include_members=True),
+                    "membership": _serialize_membership(existing),
+                }
+
+            membership = membership_model(
+                team_id=normalized_team,
+                email=normalized_email,
+                role=role,
+                joined_at=datetime.utcnow(),
+            )
+            session.add(membership)
+            session.flush()
+            session.refresh(team)
+
+            return {
+                "ok": True,
+                "team": _serialize_team(team, include_members=True),
+                "membership": _serialize_membership(membership),
+            }
+
+    state = _load_state()
+    _ensure_state_user(state, normalized_email)
+    teams_state = state.setdefault("teams", {})
+    memberships_state = state.setdefault("team_memberships", {})
+
+    team_entry = teams_state.get(normalized_team)
+    if team_entry is None:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    for membership in memberships_state.values():
+        if membership.get("team_id") == normalized_team and _normalize_email(str(membership.get("email", ""))) == normalized_email:
+            members = [
+                _serialize_membership(item)
+                for item in memberships_state.values()
+                if item.get("team_id") == normalized_team
+            ]
+            members.sort(key=lambda item: str(item.get("email", "")))
+            serialized_team = _serialize_team({**team_entry, "members": members}, include_members=True)
+            return {"ok": True, "team": serialized_team, "membership": _serialize_membership(membership)}
+
+    membership_id = uuid.uuid4().hex[:12]
+    joined_at = _now_iso()
+    membership_entry = {
+        "id": membership_id,
+        "team_id": normalized_team,
+        "email": normalized_email,
+        "role": role,
+        "joined_at": joined_at,
+    }
+    memberships_state[membership_id] = membership_entry
+    team_entry["member_count"] = int(team_entry.get("member_count", 0) or 0) + 1
+
+    _save_state(state)
+
+    members = [
+        _serialize_membership(item)
+        for item in memberships_state.values()
+        if item.get("team_id") == normalized_team
+    ]
+    members.sort(key=lambda item: str(item.get("email", "")))
+
+    serialized_team = _serialize_team({**team_entry, "members": members}, include_members=True)
+    return {"ok": True, "team": serialized_team, "membership": _serialize_membership(membership_entry)}
+
+
+@app.post("/teams/{team_id}/leave")
+def leave_team(team_id: str, payload: TeamLeavePayload) -> dict[str, Any]:
+    """Leave a mission team."""
+
+    normalized_team = team_id.strip()
+    normalized_email = _normalize_email(str(payload.email))
+
+    if _using_db():
+        membership_model = getattr(db_module, "TeamMembership", None)
+        team_model = getattr(db_module, "Team", None)
+        if membership_model is None or team_model is None:
+            raise HTTPException(status_code=500, detail="Team support unavailable")
+        with _session() as session:
+            membership = (
+                session.query(membership_model)
+                .filter_by(team_id=normalized_team, email=normalized_email)
+                .one_or_none()
+            )
+            if membership is None:
+                raise HTTPException(status_code=404, detail="Membership not found")
+            session.delete(membership)
+            session.flush()
+
+            team = session.query(team_model).filter_by(id=normalized_team).one_or_none()
+            serialized_team = _serialize_team(team, include_members=True) if team is not None else None
+            return {"ok": True, "team": serialized_team, "team_id": normalized_team}
+
+    state = _load_state()
+    memberships_state = state.setdefault("team_memberships", {})
+    teams_state = state.setdefault("teams", {})
+
+    membership_id = None
+    for key, membership in list(memberships_state.items()):
+        if membership.get("team_id") == normalized_team and _normalize_email(str(membership.get("email", ""))) == normalized_email:
+            membership_id = key
+            memberships_state.pop(key, None)
+            break
+
+    if membership_id is None:
+        raise HTTPException(status_code=404, detail="Membership not found")
+
+    team_entry = teams_state.get(normalized_team)
+    if team_entry is not None:
+        current = int(team_entry.get("member_count", 0) or 0)
+        team_entry["member_count"] = max(0, current - 1)
+
+    _save_state(state)
+
+    members = [
+        _serialize_membership(item)
+        for item in memberships_state.values()
+        if item.get("team_id") == normalized_team
+    ]
+    members.sort(key=lambda item: str(item.get("email", "")))
+
+    serialized_team = None
+    if team_entry is not None:
+        serialized_team = _serialize_team({**team_entry, "members": members}, include_members=True)
+
+    return {"ok": True, "team": serialized_team, "team_id": normalized_team}
 
 
 class ReseedPayload(BaseModel):
@@ -774,7 +1633,16 @@ if os.path.isdir(assets_dir):
 @app.get("/status")
 def get_status() -> dict[str, object]:
     """Simple health endpoint used by the frontend and smoke tests."""
-    return {"ok": True, "db": DB_AVAILABLE, "error": DB_ERROR}
+
+    storage = STORAGE_MODE
+    payload: dict[str, object] = {
+        "ok": True,
+        "db": DB_AVAILABLE,
+        "storage": storage,
+    }
+    if storage == "database" and DB_ERROR:
+        payload["error"] = DB_ERROR
+    return payload
 
 
 @app.post("/auth/register", status_code=status.HTTP_201_CREATED)
@@ -782,7 +1650,7 @@ def register(payload: AuthPayload) -> dict[str, Any]:
     email = _normalize_email(payload.email)
     password = payload.password
 
-    if USE_DB:
+    if _using_db():
         try:
             with _session() as session:
                 existing = (
@@ -808,8 +1676,10 @@ def register(payload: AuthPayload) -> dict[str, Any]:
                 return {"ok": True, "user": _serialize_user(user)}
         except HTTPException:
             raise
-        except Exception as exc:  # pragma: no cover - defensive fallback
+        except DBAPIError as exc:  # pragma: no cover - database connectivity failure
             _handle_db_failure(exc, "register")
+        except SQLAlchemyError as exc:  # pragma: no cover - treat as server error
+            raise HTTPException(status_code=500, detail="Database error") from exc
 
     state = _load_state()
     users = state.setdefault("users", {})
@@ -834,7 +1704,7 @@ def login(payload: AuthPayload) -> dict[str, Any]:
     email = _normalize_email(payload.email)
     password = payload.password
 
-    if USE_DB:
+    if _using_db():
         try:
             with _session() as session:
                 user = session.query(db_module.User).filter_by(email=email).one_or_none()
@@ -853,8 +1723,10 @@ def login(payload: AuthPayload) -> dict[str, Any]:
                 return {"ok": True, "user": _serialize_user(user)}
         except HTTPException:
             raise
-        except Exception as exc:  # pragma: no cover - defensive fallback
+        except DBAPIError as exc:  # pragma: no cover - database connectivity failure
             _handle_db_failure(exc, "login")
+        except SQLAlchemyError as exc:  # pragma: no cover - treat as server error
+            raise HTTPException(status_code=500, detail="Database error") from exc
 
     state = _load_state()
     users = state.setdefault("users", {})
@@ -882,7 +1754,7 @@ def reseed(payload: ReseedPayload | None = None) -> dict[str, Any]:
         owner_email = _normalize_email(str(payload.email))
 
     if owner_email:
-        if USE_DB:
+        if _using_db():
             with _session() as session:
                 user = (
                     session.query(db_module.User)
@@ -926,16 +1798,55 @@ def create_job(payload: JobCreatePayload) -> dict[str, Any]:
 
     creator_email = _normalize_email(str(payload.created_by))
     assignee_email = _normalize_email(str(payload.assigned_to)) if payload.assigned_to else None
+    team_id = payload.team_id.strip() if payload.team_id else None
+    airline_id = payload.airline_id.strip() if payload.airline_id else None
+    team_name = None
+    airline_name = None
 
-    if USE_DB:
+    if _using_db():
         with _session() as session:
             user = session.query(db_module.User).filter_by(email=creator_email).one_or_none()
             if user is None:
                 raise HTTPException(status_code=404, detail="User not found")
+            is_admin = _user_is_admin(user, creator_email)
+            team_memberships, airline_memberships = _membership_context(creator_email, session=session)
             if assignee_email:
                 assignee = session.query(db_module.User).filter_by(email=assignee_email).one_or_none()
                 if assignee is None:
                     raise HTTPException(status_code=404, detail="Assignee not found")
+
+            team_model = getattr(db_module, "Team", None)
+            airline_model = getattr(db_module, "VirtualAirline", None)
+
+            team_record = None
+            if team_id:
+                if team_model is None:
+                    raise HTTPException(status_code=500, detail="Team support unavailable")
+                team_record = session.query(team_model).filter_by(id=team_id).one_or_none()
+                if team_record is None:
+                    raise HTTPException(status_code=404, detail="Team not found")
+                team_name = getattr(team_record, "name", None)
+                if not is_admin and team_id not in team_memberships:
+                    raise HTTPException(status_code=403, detail="Join the team before creating missions for it")
+                team_airline = getattr(team_record, "airline_id", None)
+                if team_airline:
+                    if airline_id and airline_id != team_airline:
+                        raise HTTPException(status_code=400, detail="Team is linked to a different airline")
+                    airline_id = team_airline
+                    airline_rel = getattr(team_record, "airline", None)
+                    if airline_rel is not None:
+                        airline_name = getattr(airline_rel, "name", None)
+                    airline_memberships.add(team_airline)
+
+            if airline_id:
+                if airline_model is None:
+                    raise HTTPException(status_code=500, detail="Virtual airline support unavailable")
+                airline_record = session.query(airline_model).filter_by(id=airline_id).one_or_none()
+                if airline_record is None:
+                    raise HTTPException(status_code=404, detail="Virtual airline not found")
+                airline_name = airline_name or getattr(airline_record, "name", None)
+                if not is_admin and airline_id not in airline_memberships:
+                    raise HTTPException(status_code=403, detail="Join the airline before creating missions for it")
     else:
         state = _load_state()
         users = state.setdefault("users", {})
@@ -944,12 +1855,53 @@ def create_job(payload: JobCreatePayload) -> dict[str, Any]:
         if assignee_email and assignee_email not in users:
             raise HTTPException(status_code=404, detail="Assignee not found")
 
-    legs = [
-        {"seq": leg.seq, "mode": leg.mode}
-        for leg in (payload.legs or [])
-    ]
+        is_admin = _user_is_admin(users[creator_email], creator_email)
+        teams_state = state.setdefault("teams", {})
+        airlines_state = state.setdefault("virtual_airlines", {})
+        team_memberships, airline_memberships = _membership_context(creator_email, state=state)
+
+        if team_id:
+            team_entry = teams_state.get(team_id)
+            if team_entry is None:
+                raise HTTPException(status_code=404, detail="Team not found")
+            team_name = team_entry.get("name")
+            if not is_admin and team_id not in team_memberships:
+                raise HTTPException(status_code=403, detail="Join the team before creating missions for it")
+            team_airline = team_entry.get("airline_id")
+            if team_airline:
+                if airline_id and airline_id != team_airline:
+                    raise HTTPException(status_code=400, detail="Team is linked to a different airline")
+                airline_id = team_airline
+                airline_name = team_entry.get("airline_name") or airlines_state.get(team_airline, {}).get("name")
+                airline_memberships.add(team_airline)
+
+        if airline_id:
+            airline_entry = airlines_state.get(airline_id)
+            if airline_entry is None:
+                raise HTTPException(status_code=404, detail="Virtual airline not found")
+            airline_name = airline_name or airline_entry.get("name")
+            if not is_admin and airline_id not in airline_memberships:
+                raise HTTPException(status_code=403, detail="Join the airline before creating missions for it")
+
+    legs = []
+    for index, leg in enumerate(payload.legs or [], start=1):
+        legs.append(
+            {
+                "seq": leg.seq or index,
+                "mode": leg.mode or "flight",
+                "origin_airport": leg.origin_airport or payload.departure_airport.strip(),
+                "destination_airport": leg.destination_airport or payload.arrival_airport.strip(),
+            }
+        )
     if not legs:
-        legs = [{"seq": 1, "mode": "flight"}]
+        legs = [
+            {
+                "seq": 1,
+                "mode": "flight",
+                "origin_airport": payload.departure_airport.strip(),
+                "destination_airport": payload.arrival_airport.strip(),
+            }
+        ]
 
     job_id = uuid.uuid4().hex[:12]
     created_at = datetime.utcnow()
@@ -968,6 +1920,10 @@ def create_job(payload: JobCreatePayload) -> dict[str, Any]:
         notes=payload.notes.strip() if payload.notes else None,
         legs=legs,
         assigned_to=assignee_email,
+        team_id=team_id,
+        team_name=team_name,
+        airline_id=airline_id,
+        airline_name=airline_name,
     )
 
     return {"ok": True, "job": job_data}
@@ -1012,27 +1968,35 @@ def claim_job(job_id: str, payload: JobClaimPayload) -> dict[str, Any]:
 
     claimer = _normalize_email(str(payload.email))
 
-    if USE_DB:
+    if _using_db():
         with _session() as session:
             user = session.query(db_module.User).filter_by(email=claimer).one_or_none()
             if user is None:
                 raise HTTPException(status_code=404, detail="User not found")
+            is_admin_user = _user_is_admin(user, claimer)
 
             job = session.query(db_module.Job).filter_by(job_id=job_id).one_or_none()
             if job is None:
                 raise HTTPException(status_code=404, detail="Job not found")
 
-            existing_assignee = None
             owner_cls = getattr(db_module, "JobOwner", None)
+            detail_model = getattr(job, "detail", None)
+            team_memberships, airline_memberships = _membership_context(claimer, session=session)
+            required_team = getattr(detail_model, "team_id", None) if detail_model is not None else None
+            required_airline = getattr(detail_model, "airline_id", None) if detail_model is not None else None
+
+            existing_assignee = None
             if owner_cls is not None and job.owner is not None:
                 existing_assignee = _normalize_email(str(job.owner.email))
-
-            detail_model = getattr(job, "detail", None)
             if existing_assignee is None and detail_model is not None and getattr(detail_model, "assigned_to", None):
                 existing_assignee = _normalize_email(str(detail_model.assigned_to))
 
             if existing_assignee and existing_assignee != claimer:
                 raise HTTPException(status_code=409, detail="Job already claimed")
+            if required_team and not (is_admin_user or required_team in team_memberships):
+                raise HTTPException(status_code=403, detail="Join the team to claim this job")
+            if required_airline and not (is_admin_user or required_airline in airline_memberships):
+                raise HTTPException(status_code=403, detail="Join the airline to claim this job")
 
             if owner_cls is not None:
                 if job.owner is None:
@@ -1056,6 +2020,8 @@ def claim_job(job_id: str, payload: JobClaimPayload) -> dict[str, Any]:
     users = state.setdefault("users", {})
     if claimer not in users:
         raise HTTPException(status_code=404, detail="User not found")
+    is_admin_user = _user_is_admin(users[claimer], claimer)
+    team_memberships, airline_memberships = _membership_context(claimer, state=state)
 
     jobs = state.setdefault("jobs", {})
     job_entry = jobs.get(job_id)
@@ -1067,6 +2033,13 @@ def claim_job(job_id: str, payload: JobClaimPayload) -> dict[str, Any]:
         existing_assignee_norm = _normalize_email(str(existing_assignee))
         if existing_assignee_norm and existing_assignee_norm != claimer:
             raise HTTPException(status_code=409, detail="Job already claimed")
+
+    required_team = job_entry.get("team_id")
+    required_airline = job_entry.get("airline_id")
+    if required_team and not (is_admin_user or required_team in team_memberships):
+        raise HTTPException(status_code=403, detail="Join the team to claim this job")
+    if required_airline and not (is_admin_user or required_airline in airline_memberships):
+        raise HTTPException(status_code=403, detail="Join the airline to claim this job")
 
     job_entry["assigned_to"] = claimer
     jobs[job_id] = job_entry
@@ -1081,13 +2054,16 @@ def list_jobs(email: EmailAddress | None = Query(default=None)) -> dict[str, Any
     filter_email = _normalize_email(str(email)) if email else None
     available: list[dict[str, Any]] = []
     mine: list[dict[str, Any]] = []
+    team_memberships: set[str] = set()
+    airline_memberships: set[str] = set()
+    is_admin_user = False
 
     def _sort_key(item: dict[str, Any]) -> tuple[str, str]:
         deadline = item.get("deadline") or ""
         created = item.get("created_at") or ""
         return (deadline or "", created or "")
 
-    if USE_DB:
+    if _using_db():
         with _session() as session:
             query = session.query(db_module.Job)
             if joinedload is not None:
@@ -1096,26 +2072,59 @@ def list_jobs(email: EmailAddress | None = Query(default=None)) -> dict[str, Any
                     query = query.options(joinedload(db_module.Job.owner))
                 if hasattr(db_module, "JobDetail"):
                     query = query.options(joinedload(db_module.Job.detail))
+            if filter_email:
+                user_record = session.query(db_module.User).filter_by(email=filter_email).one_or_none()
+                if user_record is not None:
+                    is_admin_user = _user_is_admin(user_record, filter_email)
+            team_memberships, airline_memberships = _membership_context(filter_email, session=session)
 
             jobs = query.order_by(db_module.Job.job_id.desc()).all()
             for job in jobs:
                 serialized = _serialize_job(job)
                 assignee = serialized.get("assigned_to")
+                team_required = serialized.get("team_id")
+                airline_required = serialized.get("airline_id")
                 if assignee:
                     if filter_email and assignee == filter_email:
                         mine.append(serialized)
                     continue
+                if team_required:
+                    if not filter_email:
+                        continue
+                    if not (team_required in team_memberships or is_admin_user):
+                        continue
+                if airline_required:
+                    if not filter_email:
+                        continue
+                    if not (airline_required in airline_memberships or is_admin_user):
+                        continue
                 available.append(serialized)
     else:
         state = _load_state()
         stored = state.get("jobs", {})
+        users = state.get("users", {})
+        if filter_email and filter_email in users:
+            is_admin_user = _user_is_admin(users[filter_email], filter_email)
+        team_memberships, airline_memberships = _membership_context(filter_email, state=state)
         for job in stored.values():
             serialized = _serialize_job(job)
             assignee = serialized.get("assigned_to")
+            team_required = serialized.get("team_id")
+            airline_required = serialized.get("airline_id")
             if assignee:
                 if filter_email and assignee == filter_email:
                     mine.append(serialized)
                 continue
+            if team_required:
+                if not filter_email:
+                    continue
+                if not (team_required in team_memberships or is_admin_user):
+                    continue
+            if airline_required:
+                if not filter_email:
+                    continue
+                if not (airline_required in airline_memberships or is_admin_user):
+                    continue
             available.append(serialized)
 
     available.sort(key=_sort_key)
@@ -1132,7 +2141,7 @@ def admin_list_jobs(actor: EmailAddress = Query(..., alias="actor")) -> dict[str
     _require_admin(str(actor))
 
     jobs: list[dict[str, Any]] = []
-    if USE_DB:
+    if _using_db():
         with _session() as session:
             query = session.query(db_module.Job)
             if joinedload is not None:
@@ -1157,7 +2166,7 @@ def admin_delete_job(job_id: str, actor: EmailAddress = Query(..., alias="actor"
 
     _require_admin(str(actor))
 
-    if USE_DB:
+    if _using_db():
         with _session() as session:
             job = session.query(db_module.Job).filter_by(job_id=job_id).one_or_none()
             if job is None:
@@ -1181,7 +2190,7 @@ def admin_list_users(actor: EmailAddress = Query(..., alias="actor")) -> dict[st
 
     _require_admin(str(actor))
 
-    if USE_DB:
+    if _using_db():
         with _session() as session:
             records = (
                 session.query(db_module.User)
@@ -1213,7 +2222,7 @@ def admin_update_user(
     actor_email = _require_admin(str(actor))
     target_email = _normalize_email(email)
 
-    if USE_DB:
+    if _using_db():
         with _session() as session:
             user = session.query(db_module.User).filter_by(email=target_email).one_or_none()
             if user is None:
@@ -1272,7 +2281,7 @@ def admin_delete_user(email: str, actor: EmailAddress = Query(..., alias="actor"
     actor_email = _require_admin(str(actor))
     target_email = _normalize_email(email)
 
-    if USE_DB:
+    if _using_db():
         with _session() as session:
             user = session.query(db_module.User).filter_by(email=target_email).one_or_none()
             if user is None:
@@ -1330,7 +2339,7 @@ def create_flight(
     """Create a new flight for a given assignment."""
 
     flight_id = uuid.uuid4().hex
-    if USE_DB:
+    if _using_db():
         with _session() as session:
             session.add(
                 db_module.Flight(
@@ -1358,7 +2367,7 @@ def create_flight(
 def post_telemetry(payload: TelemetryPayload) -> dict[str, Any]:
     """Store telemetry points for a flight."""
 
-    if USE_DB:
+    if _using_db():
         with _session() as session:
             existing = (
                 session.query(db_module.Telemetry)
@@ -1410,7 +2419,7 @@ def post_telemetry(payload: TelemetryPayload) -> dict[str, Any]:
 def get_telemetry(flight_id: str) -> dict[str, Any]:
     """Return stored telemetry for a flight."""
 
-    if USE_DB:
+    if _using_db():
         with _session() as session:
             points = (
                 session.query(db_module.Telemetry)
@@ -1434,7 +2443,11 @@ def home():
     if os.path.exists(index):
         return FileResponse(index)
 
-    db_state = "online" if DB_AVAILABLE else "offline"
+    storage = STORAGE_MODE
+    if storage == "database":
+        db_state = "database: online"
+    else:
+        db_state = "storage: json"
     return HTMLResponse(
         """<!doctype html>
 <html><head><meta charset="utf-8"><title>SimuNet API</title>
@@ -1477,4 +2490,4 @@ def spa_fallback(full_path: str):
     if os.path.exists(index):
         return FileResponse(index)
 
-    raise HTTPException(status_code=404)
+    raise HTTPException(status_code=404
