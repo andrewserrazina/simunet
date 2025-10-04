@@ -15,13 +15,13 @@ import random
 from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Annotated
 
 from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
-from pydantic import BaseModel, ConfigDict, Field, EmailStr
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 try:  # pragma: no cover - optional when running without SQLAlchemy
     from sqlalchemy.orm import joinedload
@@ -198,6 +198,21 @@ def _save_state(state: dict[str, Any]) -> None:
 
 def _normalize_email(email: str) -> str:
     return email.strip().lower()
+
+
+def _validate_email(value: str) -> str:
+    normalized = _normalize_email(value)
+    if "@" not in normalized:
+        raise ValueError("Email must include '@'")
+    local, domain = normalized.rsplit("@", 1)
+    if not local or not domain:
+        raise ValueError("Invalid email address")
+    if "." not in domain and domain not in {"localhost"}:
+        raise ValueError("Email domain must include a dot")
+    return normalized
+
+
+EmailAddress = Annotated[str, AfterValidator(_validate_email)]
 
 
 def _hash_password(password: str) -> str:
@@ -610,7 +625,7 @@ class TelemetryPayload(BaseModel):
 class AuthPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    email: EmailStr
+    email: EmailAddress = Field(..., min_length=3, max_length=320)
     password: str = Field(..., min_length=8)
 
 
@@ -632,8 +647,8 @@ class JobCreatePayload(BaseModel):
     arrival_airport: str = Field(..., min_length=3, max_length=16)
     deadline: datetime
     notes: str | None = Field(default=None, max_length=600)
-    created_by: EmailStr
-    assigned_to: EmailStr | None = None
+    created_by: EmailAddress = Field(..., min_length=3, max_length=320)
+    assigned_to: EmailAddress | None = Field(default=None, min_length=3, max_length=320)
     legs: list[JobLegPayload] = Field(default_factory=list)
 
 
@@ -646,13 +661,13 @@ class JobAutoPayload(BaseModel):
 class JobClaimPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    email: EmailStr
+    email: EmailAddress = Field(..., min_length=3, max_length=320)
 
 
 class ReseedPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    email: EmailStr | None = None
+    email: EmailAddress | None = Field(default=None, min_length=3, max_length=320)
 
 
 class AdminUserUpdatePayload(BaseModel):
@@ -960,7 +975,7 @@ def claim_job(job_id: str, payload: JobClaimPayload) -> dict[str, Any]:
 
 
 @app.get("/jobs")
-def list_jobs(email: EmailStr | None = Query(default=None)) -> dict[str, Any]:
+def list_jobs(email: EmailAddress | None = Query(default=None)) -> dict[str, Any]:
     """Return available jobs and the caller's claimed jobs."""
 
     filter_email = _normalize_email(str(email)) if email else None
@@ -1011,7 +1026,7 @@ def list_jobs(email: EmailStr | None = Query(default=None)) -> dict[str, Any]:
 
 
 @app.get("/admin/jobs")
-def admin_list_jobs(actor: EmailStr = Query(..., alias="actor")) -> dict[str, Any]:
+def admin_list_jobs(actor: EmailAddress = Query(..., alias="actor")) -> dict[str, Any]:
     """Return every job for administrator dashboards."""
 
     _require_admin(str(actor))
@@ -1037,7 +1052,7 @@ def admin_list_jobs(actor: EmailStr = Query(..., alias="actor")) -> dict[str, An
 
 
 @app.delete("/admin/jobs/{job_id}")
-def admin_delete_job(job_id: str, actor: EmailStr = Query(..., alias="actor")) -> dict[str, Any]:
+def admin_delete_job(job_id: str, actor: EmailAddress = Query(..., alias="actor")) -> dict[str, Any]:
     """Delete a job regardless of claim status."""
 
     _require_admin(str(actor))
@@ -1061,7 +1076,7 @@ def admin_delete_job(job_id: str, actor: EmailStr = Query(..., alias="actor")) -
 
 
 @app.get("/admin/users")
-def admin_list_users(actor: EmailStr = Query(..., alias="actor")) -> dict[str, Any]:
+def admin_list_users(actor: EmailAddress = Query(..., alias="actor")) -> dict[str, Any]:
     """Return all user profiles."""
 
     _require_admin(str(actor))
@@ -1091,7 +1106,7 @@ def admin_list_users(actor: EmailStr = Query(..., alias="actor")) -> dict[str, A
 def admin_update_user(
     email: str,
     payload: AdminUserUpdatePayload,
-    actor: EmailStr = Query(..., alias="actor"),
+    actor: EmailAddress = Query(..., alias="actor"),
 ) -> dict[str, Any]:
     """Update admin status or password for a user profile."""
 
@@ -1151,7 +1166,7 @@ def admin_update_user(
 
 
 @app.delete("/admin/users/{email}")
-def admin_delete_user(email: str, actor: EmailStr = Query(..., alias="actor")) -> dict[str, Any]:
+def admin_delete_user(email: str, actor: EmailAddress = Query(..., alias="actor")) -> dict[str, Any]:
     """Remove a user account and release related assignments."""
 
     actor_email = _require_admin(str(actor))
