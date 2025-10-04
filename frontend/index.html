@@ -1,3 +1,4 @@
+<!doctype html>
 <html lang="en" class="dark">
 <head>
   <meta charset="utf-8" />
@@ -5,9 +6,6 @@
   <title>SimuNet • Dashboard</title>
   <link rel="icon" href="/favicon.ico">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     :root{ --glass: 255,255,255,0.06; }
@@ -50,18 +48,39 @@
 
       <main class="p-3 md:p-6 space-y-6">
         <section data-page="dashboard" class="space-y-6">
+          <div class="grid gap-4 lg:grid-cols-[2fr_1fr]">
+            <div class="border border-white/10 rounded-2xl bg-gradient-to-br from-indigo-600/20 via-purple-600/10 to-sky-500/20 p-6">
+              <div class="flex items-center justify-between gap-2">
+                <div>
+                  <h1 class="text-2xl font-semibold text-white">Crew Dispatch Center</h1>
+                  <p class="text-sm text-slate-200/80 mt-1">Track your assignments, upcoming departures, and new opportunities.</p>
+                </div>
+                <i data-lucide="briefcase" class="w-10 h-10 text-indigo-200 hidden md:block"></i>
+              </div>
+              <div class="mt-4 text-sm text-slate-200/70" id="status">Ready.</div>
+            </div>
+            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-6 space-y-3">
+              <div class="flex items-center justify-between gap-2">
+                <h2 class="text-lg font-semibold">Pilot Roster</h2>
+                <span id="rosterRole" class="text-xs uppercase tracking-wide text-indigo-300/80">Guest</span>
+              </div>
+              <div class="text-sm text-slate-300" id="rosterEmail">Sign in to personalise your dispatch view.</div>
+              <div class="text-xs text-slate-400" id="rosterSince">No profile loaded.</div>
+            </div>
+          </div>
+
           <section class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
-              <div class="text-slate-300 text-sm">Active Flights</div>
-              <div class="text-2xl font-bold mt-1"><span id="kpiFlights">0</span></div>
+              <div class="text-slate-300 text-sm">Assigned Missions</div>
+              <div class="text-2xl font-bold mt-1"><span id="kpiAssigned">0</span></div>
             </div>
             <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
-              <div class="text-slate-300 text-sm">Telemetry Points</div>
-              <div class="text-2xl font-bold mt-1"><span id="kpiPoints">0</span></div>
+              <div class="text-slate-300 text-sm">Open Opportunities</div>
+              <div class="text-2xl font-bold mt-1"><span id="kpiAvailable">0</span></div>
             </div>
             <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
-              <div class="text-slate-300 text-sm">My Jobs</div>
-              <div class="text-2xl font-bold mt-1"><span id="kpiJobs">0</span></div>
+              <div class="text-slate-300 text-sm">Next Deadline</div>
+              <div class="text-xl font-semibold mt-1 leading-tight" id="kpiNextDeadline">—</div>
             </div>
             <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
               <div class="text-slate-300 text-sm">Signed In</div>
@@ -69,53 +88,49 @@
             </div>
           </section>
 
-          <section class="grid lg:grid-cols-[1.6fr_1fr] gap-4">
-            <div class="space-y-4">
-              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
-                <div class="flex items-center justify-between mb-3">
-                  <h3 class="font-semibold">Live Map</h3>
-                  <div class="text-xs text-slate-400" id="status">Ready.</div>
+          <div class="grid lg:grid-cols-[1.5fr_1fr] gap-4">
+            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+              <div class="flex items-center justify-between gap-2 mb-3">
+                <div>
+                  <h3 class="text-lg font-semibold text-slate-100">My next mission</h3>
+                  <p class="text-sm text-slate-400">Stay ahead of deadlines with a tailored briefing.</p>
                 </div>
-                <div id="map" class="h-[440px] rounded-lg overflow-hidden tile-dark"></div>
               </div>
-              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
-                <div class="flex items-center justify-between mb-3">
-                  <h3 class="font-semibold">Altitude (k-index)</h3>
-                  <div class="text-xs text-slate-400" id="chartMeta">—</div>
-                </div>
-                <canvas id="altChart" height="160"></canvas>
-              </div>
+              <div id="briefingContainer" class="space-y-4"></div>
+              <div id="briefingEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">Claim a job to see your mission briefing.</div>
             </div>
-
-            <div class="space-y-4">
-              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
-                <h3 class="font-semibold mb-3">Quick Actions</h3>
-                <div class="space-y-3">
-                  <div class="flex gap-2">
-                    <input id="flightId" class="flex-1 px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 text-sm" placeholder="flight_id" />
-                    <button id="btnCopy" class="px-3 py-2 rounded-lg bg-white/10">Copy</button>
-                  </div>
-                  <div class="grid grid-cols-2 gap-2">
-                    <button id="btnSeed" class="px-3 py-2 rounded-lg grad">Seed & Start</button>
-                    <button id="btnLoad" class="px-3 py-2 rounded-lg bg-white/10">Load & Animate</button>
-                    <button id="btnDemo" class="px-3 py-2 rounded-lg bg-white/10 col-span-2">Start Demo Stream</button>
-                  </div>
-                </div>
+            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4 space-y-3">
+              <div>
+                <h3 class="text-lg font-semibold text-slate-100">Operations log</h3>
+                <p class="text-xs text-slate-400">Latest syncs and dispatch updates.</p>
               </div>
-
-              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
-                <h3 class="font-semibold mb-3">Recent Flights</h3>
-                <div class="overflow-auto">
-                  <table class="w-full text-sm">
-                    <thead class="text-left text-slate-300">
-                      <tr><th class="py-2">Flight ID</th><th class="py-2">Points</th><th class="py-2">Last Used</th></tr>
-                    </thead>
-                    <tbody id="recentTable" class="text-slate-400"></tbody>
-                  </table>
-                </div>
-              </div>
+              <div class="text-sm text-slate-300"><span class="text-slate-400">Last refresh:</span> <span id="kpiLastUpdate">—</span></div>
+              <div class="text-sm text-slate-300"><span class="text-slate-400">Status:</span> <span id="opsSummary">Standing by.</span></div>
             </div>
-          </section>
+          </div>
+
+          <div class="grid lg:grid-cols-2 gap-4">
+            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                <div>
+                  <h3 class="text-lg font-semibold text-slate-100">Open opportunities</h3>
+                  <p class="text-sm text-slate-400">Top routes waiting for a crew.</p>
+                </div>
+              </div>
+              <div id="highlightAvailable" class="space-y-3"></div>
+              <div id="highlightAvailableEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">All clear — no unclaimed missions right now.</div>
+            </div>
+            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                <div>
+                  <h3 class="text-lg font-semibold text-slate-100">My hangar</h3>
+                  <p class="text-sm text-slate-400">A quick glance at your claimed assignments.</p>
+                </div>
+              </div>
+              <div id="highlightMine" class="space-y-3"></div>
+              <div id="highlightMineEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">Claim a mission to populate your hangar.</div>
+            </div>
+          </div>
         </section>
 
         <section data-page="jobs" class="space-y-6 hidden">
@@ -405,21 +420,24 @@
       return 'http://localhost:8000';
     })();
 
-    const map = L.map('map', { zoomControl: true }).setView([39.5, -98.35], 4);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
-    const pathLine = L.polyline([], { weight: 3, opacity: 0.95 }).addTo(map);
-    const marker = L.circleMarker([0, 0], { radius: 6, weight: 2 }).addTo(map);
-
     const statusEl = document.getElementById('status');
-    const kpiFlights = document.getElementById('kpiFlights');
-    const kpiPoints = document.getElementById('kpiPoints');
-    const kpiJobs = document.getElementById('kpiJobs');
+    const kpiAssigned = document.getElementById('kpiAssigned');
+    const kpiAvailable = document.getElementById('kpiAvailable');
+    const kpiNextDeadline = document.getElementById('kpiNextDeadline');
+    const kpiLastUpdate = document.getElementById('kpiLastUpdate');
     const kpiAccount = document.getElementById('kpiAccount');
+    const opsSummary = document.getElementById('opsSummary');
     const dbStatus = document.getElementById('dbStatus');
     const apiStatus = document.getElementById('apiStatus');
-    const flightIdEl = document.getElementById('flightId');
-    const recentTable = document.getElementById('recentTable');
-    const chartMeta = document.getElementById('chartMeta');
+    const rosterEmail = document.getElementById('rosterEmail');
+    const rosterRole = document.getElementById('rosterRole');
+    const rosterSince = document.getElementById('rosterSince');
+    const briefingContainer = document.getElementById('briefingContainer');
+    const briefingEmpty = document.getElementById('briefingEmpty');
+    const highlightAvailable = document.getElementById('highlightAvailable');
+    const highlightAvailableEmpty = document.getElementById('highlightAvailableEmpty');
+    const highlightMine = document.getElementById('highlightMine');
+    const highlightMineEmpty = document.getElementById('highlightMineEmpty');
     const jobsAvailable = document.getElementById('jobsAvailable');
     const jobsAvailableEmpty = document.getElementById('jobsAvailableEmpty');
     const jobsMine = document.getElementById('jobsMine');
@@ -528,34 +546,14 @@
       });
     }
 
-    function saveRecent(fid, count) {
-      const rec = JSON.parse(ls.getItem('simunet_recent') || '[]');
-      const now = Date.now();
-      const idx = rec.findIndex((r) => r.flight_id === fid);
-      if (idx >= 0) {
-        rec[idx] = { flight_id: fid, points: count, used_at: now };
-      } else {
-        rec.unshift({ flight_id: fid, points: count, used_at: now });
+    function updateStatusMessage(text) {
+      if (statusEl) {
+        statusEl.textContent = text;
       }
-      ls.setItem('simunet_recent', JSON.stringify(rec.slice(0, 25)));
-      renderRecent();
+      if (opsSummary) {
+        opsSummary.textContent = text;
+      }
     }
-
-    function renderRecent() {
-      const rec = JSON.parse(ls.getItem('simunet_recent') || '[]');
-      recentTable.innerHTML = '';
-      rec.forEach((r) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = '<td class="py-2"><button class="underline hover:text-slate-200" data-fid="' + r.flight_id + '">' + r.flight_id + '</button></td>' +
-          '<td class="py-2 text-slate-300">' + (r.points || 0) + '</td>' +
-          '<td class="py-2">' + fmtDate(r.used_at) + '</td>';
-        tr.querySelector('button').onclick = (e) => { flightIdEl.value = e.target.dataset.fid; };
-        recentTable.appendChild(tr);
-      });
-      kpiFlights.textContent = rec.length;
-    }
-
-    renderRecent();
 
     async function apiFetch(path, opts = {}) {
       const response = await fetch(API_BASE + path, opts);
@@ -581,19 +579,25 @@
       if (currentUser) {
         ls.setItem(USER_KEY, JSON.stringify(currentUser));
       } else {
-      ls.removeItem(USER_KEY);
-    }
-    updateAccountUI();
-    updateAdminUI();
-    if (kpiAccount) {
+        ls.removeItem(USER_KEY);
+      }
+      updateAccountUI();
+      updateAdminUI();
+      updateRoster();
       const label = currentUser && currentUser.email ? currentUser.email : 'Guest';
+      if (kpiAccount) {
         kpiAccount.textContent = label;
         if (kpiAccount.parentElement) {
           kpiAccount.parentElement.setAttribute('title', label);
         }
       }
-      if (!currentUser && kpiJobs) {
-        kpiJobs.textContent = '0';
+      if (!currentUser) {
+        if (kpiAssigned) {
+          kpiAssigned.textContent = '0';
+        }
+        if (kpiNextDeadline) {
+          kpiNextDeadline.textContent = '—';
+        }
       }
       jobsLoaded = false;
       loadJobs(false);
@@ -628,6 +632,28 @@
       }
     }
 
+    function updateRoster() {
+      if (rosterEmail) {
+        rosterEmail.textContent = currentUser && currentUser.email
+          ? currentUser.email
+          : 'Sign in to personalise your dispatch view.';
+      }
+      if (rosterRole) {
+        if (currentUser && currentUser.is_admin) {
+          rosterRole.textContent = 'Admin & Pilot';
+        } else if (currentUser && currentUser.email) {
+          rosterRole.textContent = 'Pilot';
+        } else {
+          rosterRole.textContent = 'Guest';
+        }
+      }
+      if (rosterSince) {
+        rosterSince.textContent = currentUser && currentUser.created_at
+          ? 'Member since ' + fmtDate(currentUser.created_at)
+          : 'No profile loaded.';
+      }
+    }
+
     function updateAdminUI() {
       const isAdmin = Boolean(currentUser && currentUser.is_admin);
       if (navAdmin) {
@@ -659,7 +685,7 @@
         switchAuthTab(defaultTab);
         if (!currentUser) {
           authTitle.textContent = defaultTab === 'register' ? 'Create your SimuNet account' : 'Welcome back';
-          authSubtitle.textContent = 'Access demo tools, seed jobs, and monitor telemetry.';
+          authSubtitle.textContent = 'Claim missions, track assignments, and sync with SimuNet dispatch.';
         } else {
           authTitle.textContent = 'Account';
           authSubtitle.textContent = 'You are signed in with ' + currentUser.email + '.';
@@ -712,7 +738,7 @@
     btnLogout.addEventListener('click', () => {
       setCurrentUser(null);
       toggleAuthSheet(false);
-      statusEl.textContent = 'Signed out.';
+      updateStatusMessage('Signed out.');
     });
 
     async function handleAuthSubmit(type, email, password) {
@@ -738,7 +764,7 @@
           summaryCreated.textContent = res.user.created_at ? 'Joined ' + fmtDate(res.user.created_at) : '';
           switchAuthTab('login');
           toggleAuthSheet(false);
-          statusEl.textContent = `Signed in as ${res.user.email}.`;
+          updateStatusMessage(`Signed in as ${res.user.email}.`);
         }
       } catch (err) {
         authError.textContent = (err && err.message) ? err.message : 'Unable to complete request.';
@@ -763,27 +789,17 @@
         setBadge(dbStatus, s.db ? 'db: online' : 'db: offline', s.db ? 'border-emerald-400/40 text-emerald-300' : 'border-amber-400/40 text-amber-300');
         setBadge(apiStatus, 'api: reachable', 'border-emerald-400/40 text-emerald-300');
         if (updateMessage) {
-          statusEl.textContent = 'API ready.';
+          updateStatusMessage('API ready.');
         }
       } catch (e) {
         console.error(e);
         setBadge(dbStatus, 'db: error', 'border-rose-400/40 text-rose-300');
         setBadge(apiStatus, 'api: unreachable', 'border-rose-400/40 text-rose-300');
         if (updateMessage) {
-          statusEl.textContent = 'API not reachable.';
+          updateStatusMessage('API not reachable.');
         }
       }
     }
-
-    document.getElementById('btnCopy').addEventListener('click', async () => {
-      const fid = flightIdEl.value.trim();
-      if (!fid) return;
-      try {
-        await navigator.clipboard.writeText(fid);
-      } catch (err) {
-        console.warn('clipboard copy failed', err);
-      }
-    });
 
     async function loadJobs(updateStatus = true) {
       if (!jobsAvailable || !jobsAvailableEmpty || !jobsMine || !jobsMineEmpty) {
@@ -809,7 +825,7 @@
           if (signedIn) {
             parts.push(`${mine.length} mine`);
           }
-          statusEl.textContent = `Jobs refreshed (${parts.join(' • ')}).`;
+          updateStatusMessage(`Jobs refreshed (${parts.join(' • ')}).`);
         }
       } catch (err) {
         console.error(err);
@@ -831,11 +847,40 @@
           jobsMineEmpty.textContent = signedIn ? 'Jobs unavailable.' : 'Sign in to track claimed jobs.';
           jobsMineEmpty.classList.remove('hidden');
         }
-        if (kpiJobs) {
-          kpiJobs.textContent = signedIn ? '0' : '0';
+        if (briefingContainer) {
+          briefingContainer.innerHTML = '';
+        }
+        if (briefingEmpty) {
+          briefingEmpty.classList.remove('hidden');
+        }
+        if (highlightAvailable) {
+          highlightAvailable.innerHTML = '';
+        }
+        if (highlightMine) {
+          highlightMine.innerHTML = '';
+        }
+        if (highlightAvailableEmpty) {
+          highlightAvailableEmpty.textContent = 'Jobs unavailable.';
+          highlightAvailableEmpty.classList.remove('hidden');
+        }
+        if (highlightMineEmpty) {
+          highlightMineEmpty.textContent = signedIn ? 'Jobs unavailable.' : 'Sign in to view your hangar.';
+          highlightMineEmpty.classList.remove('hidden');
+        }
+        if (kpiAssigned) {
+          kpiAssigned.textContent = '0';
+        }
+        if (kpiAvailable) {
+          kpiAvailable.textContent = '0';
+        }
+        if (kpiNextDeadline) {
+          kpiNextDeadline.textContent = '—';
+        }
+        if (kpiLastUpdate) {
+          kpiLastUpdate.textContent = '—';
         }
         if (updateStatus) {
-          statusEl.textContent = err instanceof Error ? err.message : 'Unable to load jobs.';
+          updateStatusMessage(err instanceof Error ? err.message : 'Unable to load jobs.');
         }
       }
     }
@@ -889,9 +934,7 @@
         jobsMeta.textContent = `${parts.join(' • ')} • updated ${stamp}`;
       }
 
-      if (kpiJobs) {
-        kpiJobs.textContent = signedIn ? String(myJobs.length) : '0';
-      }
+      updateDashboardInsights(availableJobs, signedIn ? myJobs : []);
     }
 
     function renderJobCollection(container, emptyEl, jobs, { allowClaim, signedIn, mineList }) {
@@ -916,6 +959,199 @@
       jobs.forEach((job) => {
         container.appendChild(buildJobCard(job, { allowClaim, signedIn }));
       });
+    }
+
+    function updateDashboardInsights(availableJobs, myJobs) {
+      const availableCount = Array.isArray(availableJobs) ? availableJobs.length : 0;
+      const mineCount = Array.isArray(myJobs) ? myJobs.length : 0;
+
+      if (kpiAssigned) {
+        kpiAssigned.textContent = String(mineCount);
+      }
+      if (kpiAvailable) {
+        kpiAvailable.textContent = String(availableCount);
+      }
+      if (kpiLastUpdate) {
+        kpiLastUpdate.textContent = new Date().toLocaleTimeString();
+      }
+
+      if (kpiNextDeadline) {
+        let nextDeadline = null;
+        if (mineCount > 0) {
+          const deadlines = myJobs
+            .map((job) => {
+              const value = job && job.deadline ? new Date(job.deadline) : null;
+              return value && !Number.isNaN(value.getTime()) ? value : null;
+            })
+            .filter(Boolean);
+          if (deadlines.length > 0) {
+            deadlines.sort((a, b) => a.getTime() - b.getTime());
+            nextDeadline = deadlines[0];
+          }
+        }
+        kpiNextDeadline.textContent = nextDeadline ? fmtDate(nextDeadline) : '—';
+      }
+
+      renderBriefing(myJobs);
+      renderHighlights(highlightAvailable, highlightAvailableEmpty, availableJobs, {
+        allowClaim: true,
+        signedIn: Boolean(currentUser && currentUser.email),
+        limit: 3,
+        mineList: false,
+      });
+      renderHighlights(highlightMine, highlightMineEmpty, myJobs, {
+        allowClaim: false,
+        signedIn: Boolean(currentUser && currentUser.email),
+        limit: 3,
+        mineList: true,
+      });
+    }
+
+    function renderBriefing(myJobs) {
+      if (!briefingContainer || !briefingEmpty) {
+        return;
+      }
+      briefingContainer.innerHTML = '';
+      const hasJobs = Array.isArray(myJobs) && myJobs.length > 0;
+      if (!hasJobs) {
+        briefingEmpty.classList.remove('hidden');
+        return;
+      }
+      briefingEmpty.classList.add('hidden');
+      const sorted = [...myJobs].sort((a, b) => {
+        const aTime = a && a.deadline ? new Date(a.deadline).getTime() : Number.POSITIVE_INFINITY;
+        const bTime = b && b.deadline ? new Date(b.deadline).getTime() : Number.POSITIVE_INFINITY;
+        return aTime - bTime;
+      });
+      const nextJob = sorted[0];
+      if (nextJob) {
+        briefingContainer.appendChild(buildBriefingCard(nextJob));
+      }
+    }
+
+    function buildBriefingCard(job) {
+      const card = document.createElement('div');
+      card.className = 'rounded-xl border border-white/10 bg-[#0b1020]/70 p-4 space-y-3';
+
+      const header = document.createElement('div');
+      header.className = 'flex items-center justify-between gap-2';
+      const title = document.createElement('div');
+      title.className = 'text-lg font-semibold text-slate-100';
+      title.textContent = job.title || 'Flight assignment';
+      const platform = document.createElement('span');
+      platform.className = 'text-xs uppercase tracking-wide text-indigo-300/80';
+      platform.textContent = job.platform || 'Microsoft Flight Simulator';
+      header.append(title, platform);
+
+      const route = document.createElement('div');
+      route.className = 'text-sm text-slate-300';
+      route.innerHTML = '<span class="text-slate-400">Route:</span> ' +
+        escapeHtml(job.departure_airport || '—') + ' → ' + escapeHtml(job.arrival_airport || '—');
+
+      const payload = document.createElement('div');
+      payload.className = 'text-sm text-slate-300';
+      const numericWeight = Number(job.weight_lbs);
+      const weight = Number.isFinite(numericWeight) && numericWeight > 0 ? `${numericWeight.toLocaleString()} lbs` : 'N/A';
+      payload.innerHTML = '<span class="text-slate-400">Payload:</span> ' + escapeHtml(job.payload || '—') +
+        ' • ' + weight;
+
+      const deadline = document.createElement('div');
+      deadline.className = 'text-sm text-slate-300';
+      deadline.innerHTML = '<span class="text-slate-400">Deadline:</span> ' + fmtDate(job.deadline);
+
+      card.append(header, route, payload, deadline);
+
+      if (job.notes) {
+        const notes = document.createElement('div');
+        notes.className = 'text-xs text-slate-400 bg-white/5 border border-white/10 rounded-lg p-3';
+        notes.textContent = job.notes;
+        card.appendChild(notes);
+      }
+
+      return card;
+    }
+
+    function renderHighlights(container, emptyEl, jobs, { allowClaim, signedIn, limit, mineList }) {
+      if (!container || !emptyEl) {
+        return;
+      }
+      container.innerHTML = '';
+      const list = Array.isArray(jobs) ? [...jobs] : [];
+      if (!list.length) {
+        if (mineList && !signedIn) {
+          emptyEl.textContent = 'Sign in to view your hangar.';
+        } else if (!mineList) {
+          emptyEl.textContent = 'All clear — no unclaimed missions right now.';
+        }
+        emptyEl.classList.remove('hidden');
+        return;
+      }
+      emptyEl.classList.add('hidden');
+      list
+        .sort((a, b) => {
+          const aTime = a && a.deadline ? new Date(a.deadline).getTime() : Number.POSITIVE_INFINITY;
+          const bTime = b && b.deadline ? new Date(b.deadline).getTime() : Number.POSITIVE_INFINITY;
+          return aTime - bTime;
+        })
+        .slice(0, limit || 3)
+        .forEach((job) => {
+          container.appendChild(buildJobSummary(job, { allowClaim, signedIn, mineList }));
+        });
+    }
+
+    function buildJobSummary(job, { allowClaim, signedIn, mineList }) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'rounded-xl border border-white/10 bg-[#0b1020]/60 p-4 space-y-2';
+
+      const header = document.createElement('div');
+      header.className = 'flex items-center justify-between gap-2';
+      const title = document.createElement('div');
+      title.className = 'font-semibold text-slate-100';
+      title.textContent = job.title || 'Flight assignment';
+      const deadline = document.createElement('span');
+      deadline.className = 'text-xs text-slate-400';
+      deadline.textContent = job.deadline ? fmtDate(job.deadline) : 'No deadline';
+      header.append(title, deadline);
+
+      const route = document.createElement('div');
+      route.className = 'text-sm text-slate-300';
+      route.innerHTML = escapeHtml(job.departure_airport || '—') + ' → ' + escapeHtml(job.arrival_airport || '—');
+
+      const payload = document.createElement('div');
+      payload.className = 'text-xs text-slate-400';
+      const numericWeight = Number(job.weight_lbs);
+      const weight = Number.isFinite(numericWeight) && numericWeight > 0 ? `${numericWeight.toLocaleString()} lbs` : 'N/A';
+      payload.textContent = `${job.payload || '—'} • ${weight}`;
+
+      wrapper.append(header, route, payload);
+
+      const footer = document.createElement('div');
+      footer.className = 'flex items-center gap-2 text-xs text-slate-400';
+      const created = job.created_by ? `Created by ${job.created_by}` : 'SimuNet dispatch';
+      footer.textContent = created;
+
+      if (allowClaim) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'ml-auto px-3 py-2 rounded-lg grad text-xs font-medium';
+        if (signedIn) {
+          button.textContent = 'Claim mission';
+          button.addEventListener('click', () => handleClaim(job.job_id));
+        } else {
+          button.textContent = 'Sign in to claim';
+          button.classList.add('opacity-60');
+          button.addEventListener('click', () => toggleAuthSheet(true, 'login'));
+        }
+        footer.appendChild(button);
+      } else if (mineList) {
+        const status = document.createElement('span');
+        status.className = 'ml-auto text-xs text-emerald-300';
+        status.textContent = 'Assigned to you';
+        footer.appendChild(status);
+      }
+
+      wrapper.appendChild(footer);
+      return wrapper;
     }
 
     function renderAdminJobs(jobs) {
@@ -1094,11 +1330,11 @@
         return;
       }
       if (!currentUser || !currentUser.email) {
-        statusEl.textContent = 'Sign in to claim jobs.';
+        updateStatusMessage('Sign in to claim jobs.');
         toggleAuthSheet(true, 'login');
         return;
       }
-      statusEl.textContent = 'Claiming job...';
+      updateStatusMessage('Claiming job...');
       try {
         await apiFetch(`/jobs/${encodeURIComponent(jobId)}/claim`, {
           method: 'POST',
@@ -1106,10 +1342,10 @@
           body: JSON.stringify({ email: currentUser.email.toLowerCase() }),
         });
         await loadJobs(true);
-        statusEl.textContent = 'Job claimed.';
+        updateStatusMessage('Job claimed.');
       } catch (err) {
         console.error(err);
-        statusEl.textContent = err instanceof Error ? err.message : 'Unable to claim job.';
+        updateStatusMessage(err instanceof Error ? err.message : 'Unable to claim job.');
       }
     }
 
@@ -1227,7 +1463,7 @@
       formCreateJob.addEventListener('submit', async (event) => {
         event.preventDefault();
         if (!currentUser || !currentUser.email) {
-          statusEl.textContent = 'Sign in to publish jobs.';
+          updateStatusMessage('Sign in to publish jobs.');
           toggleAuthSheet(true, 'login');
           return;
         }
@@ -1240,13 +1476,13 @@
         const notesValue = jobNotes ? jobNotes.value.trim() : '';
 
         if (!titleValue || !payloadValue || !departureValue || !arrivalValue || !deadlineValue) {
-          statusEl.textContent = 'All required fields must be completed.';
+          updateStatusMessage('All required fields must be completed.');
           return;
         }
 
         const deadlineDate = new Date(deadlineValue);
         if (Number.isNaN(deadlineDate.getTime())) {
-          statusEl.textContent = 'Deadline must be a valid date/time.';
+          updateStatusMessage('Deadline must be a valid date/time.');
           return;
         }
 
@@ -1254,7 +1490,7 @@
         if (jobWeight && jobWeight.value.trim()) {
           const parsed = Number(jobWeight.value);
           if (!Number.isFinite(parsed) || parsed < 0) {
-            statusEl.textContent = 'Weight must be a positive number.';
+            updateStatusMessage('Weight must be a positive number.');
             return;
           }
           weightValue = parsed;
@@ -1273,7 +1509,7 @@
           legs: [{ seq: 1, mode: 'flight' }],
         };
 
-        statusEl.textContent = 'Publishing job...';
+        updateStatusMessage('Publishing job...');
         try {
           await apiFetch('/jobs', {
             method: 'POST',
@@ -1292,10 +1528,10 @@
           }
           setJobDeadlineDefault(jobDeadline);
           await loadJobs(true);
-          statusEl.textContent = 'Job created.';
+          updateStatusMessage('Job created.');
         } catch (err) {
           console.error(err);
-          statusEl.textContent = err instanceof Error ? err.message : 'Unable to create job.';
+          updateStatusMessage(err instanceof Error ? err.message : 'Unable to create job.');
         }
       });
     }
@@ -1307,7 +1543,7 @@
         }
         btnJobsGenerate.disabled = true;
         btnJobsGenerate.classList.add('opacity-60', 'cursor-not-allowed');
-        statusEl.textContent = 'Requesting SimuNet missions…';
+        updateStatusMessage('Requesting SimuNet missions…');
         try {
           const res = await apiFetch('/jobs/generate', {
             method: 'POST',
@@ -1319,13 +1555,13 @@
             ? (Array.isArray(res.jobs) ? res.jobs.length : (typeof res.count === 'number' ? res.count : 0))
             : 0;
           if (created > 0) {
-            statusEl.textContent = `SimuNet generated ${created} new job${created === 1 ? '' : 's'}.`;
+            updateStatusMessage(`SimuNet generated ${created} new job${created === 1 ? '' : 's'}.`);
           } else {
-            statusEl.textContent = 'SimuNet had no new missions ready.';
+            updateStatusMessage('SimuNet had no new missions ready.');
           }
         } catch (err) {
           console.error(err);
-          statusEl.textContent = err instanceof Error ? err.message : 'Unable to request SimuNet missions.';
+          updateStatusMessage(err instanceof Error ? err.message : 'Unable to request SimuNet missions.');
         } finally {
           btnJobsGenerate.disabled = false;
           btnJobsGenerate.classList.remove('opacity-60', 'cursor-not-allowed');
@@ -1477,115 +1713,6 @@
     if (btnJobsRefresh) {
       btnJobsRefresh.addEventListener('click', () => loadJobs(true));
     }
-
-    document.getElementById('btnSeed').addEventListener('click', async () => {
-      if (!currentUser || !currentUser.email) {
-        statusEl.textContent = 'Sign in to create demo jobs.';
-        toggleAuthSheet(true, 'login');
-        return;
-      }
-      statusEl.textContent = 'Seeding...';
-      try {
-        const email = currentUser.email.toLowerCase();
-        const seeded = await apiFetch('/dev/reseed', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
-        });
-        if (seeded && seeded.job_id) {
-          await loadJobs(false);
-        }
-        const started = await apiFetch(`/flights?assignment_id=${encodeURIComponent(seeded.job_id)}&seq=1&mode=flight`, { method: 'POST' });
-        flightIdEl.value = started.flight_id;
-        saveRecent(started.flight_id, 0);
-        statusEl.textContent = 'Created flight ' + started.flight_id;
-      } catch (e) {
-        console.error(e);
-        statusEl.textContent = 'Seed/start failed.';
-      }
-    });
-
-    async function fetchTelemetry(fid) {
-      const data = await apiFetch('/telemetry/' + encodeURIComponent(fid));
-      return data.points || [];
-    }
-
-    function fitPath(points) {
-      if (!points.length) return;
-      const latlngs = points.map((p) => [p.lat, p.lon]);
-      map.fitBounds(L.latLngBounds(latlngs), { padding: [20, 20] });
-    }
-
-    function sleep(ms) {
-      return new Promise((resolve) => setTimeout(resolve, ms));
-    }
-
-    const ctx = document.getElementById('altChart');
-    const altChart = new Chart(ctx, {
-      type: 'line',
-      data: { labels: [], datasets: [{ label: 'Altitude', data: [], tension: 0.3 }] },
-      options: { plugins: { legend: { labels: { color: '#cbd5e1' } } }, scales: { x: { ticks: { color: '#cbd5e1' } }, y: { ticks: { color: '#cbd5e1' } } } }
-    });
-
-    document.getElementById('btnLoad').addEventListener('click', async () => {
-      const fid = flightIdEl.value.trim();
-      if (!fid) {
-        alert('Enter a flight_id.');
-        return;
-      }
-      statusEl.textContent = 'Loading telemetry...';
-      try {
-        const pts = await fetchTelemetry(fid);
-        kpiPoints.textContent = pts.length;
-        saveRecent(fid, pts.length);
-        if (!pts.length) {
-          statusEl.textContent = 'No points yet. Add via Demo Stream or your connector.';
-          return;
-        }
-        const latlngs = pts.map((p) => [p.lat, p.lon]);
-        pathLine.setLatLngs(latlngs);
-        marker.setLatLng(latlngs[latlngs.length - 1]);
-        fitPath(pts);
-        altChart.data.labels = pts.map((p) => p.k);
-        altChart.data.datasets[0].data = pts.map((p) => p.alt || 0);
-        altChart.update();
-        chartMeta.textContent = pts.length + ' points • last k=' + pts[pts.length - 1].k;
-        for (const p of pts) {
-          marker.setLatLng([p.lat, p.lon]);
-          await sleep(110);
-        }
-        statusEl.textContent = 'Rendered ' + pts.length + ' points.';
-      } catch (e) {
-        console.error(e);
-        statusEl.textContent = 'Load failed.';
-      }
-    });
-
-    document.getElementById('btnDemo').addEventListener('click', async () => {
-      const fid = flightIdEl.value.trim();
-      if (!fid) {
-        alert('Create or paste a flight_id first.');
-        return;
-      }
-      statusEl.textContent = 'Streaming demo telemetry...';
-      try {
-        let lat = 40.7;
-        let lon = -74.0;
-        let alt = 50;
-        for (let k = 0; k < 80; k++) {
-          const pt = { flight_id: fid, k, lat, lon, alt, ts: new Date().toISOString() };
-          await apiFetch('/telemetry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pt) });
-          lat += 0.002;
-          lon += 0.004;
-          alt += (k % 12 === 0 ? 20 : 0);
-          await sleep(110);
-        }
-        statusEl.textContent = 'Demo stream complete. Click "Load & Animate".';
-      } catch (e) {
-        console.error(e);
-        statusEl.textContent = 'Demo stream failed.';
-      }
-    });
 
     function updateNav(targetPage) {
       navLinks.forEach((link) => {
