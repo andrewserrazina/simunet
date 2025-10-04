@@ -153,16 +153,25 @@ def _serialize_job(job: Any) -> dict[str, Any]:
             "job_id": job.get("job_id"),
             "legs": legs,
             "created_at": job.get("created_at"),
+            "created_by": job.get("created_by"),
         }
 
     legs = []
     for leg in getattr(job, "legs", []) or []:
         legs.append({"seq": getattr(leg, "seq", 0), "mode": getattr(leg, "mode", "")})
 
+    created_by = None
+    owner = getattr(job, "owner", None)
+    if owner is not None:
+        created_by = getattr(owner, "email", None)
+    elif hasattr(job, "created_by"):
+        created_by = getattr(job, "created_by")
+
     return {
         "job_id": getattr(job, "job_id", None),
         "legs": legs,
         "created_at": _isoformat(getattr(job, "created_at", None)),
+        "created_by": created_by,
     }
 
 
@@ -197,6 +206,12 @@ class AuthPayload(BaseModel):
 
     email: EmailStr
     password: str = Field(..., min_length=8)
+
+
+class ReseedPayload(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    email: EmailStr | None = None
 
 
 FRONTEND_DIR = os.getenv(
@@ -274,7 +289,7 @@ def login(payload: AuthPayload) -> dict[str, Any]:
 
 
 @app.post("/dev/reseed", status_code=status.HTTP_201_CREATED)
-def reseed() -> dict[str, Any]:
+def reseed(payload: ReseedPayload | None = None) -> dict[str, Any]:
     """Create a demo job/assignment for quickstarts."""
     job_id = uuid.uuid4().hex[:12]
     created_at = _now_iso()
@@ -283,9 +298,23 @@ def reseed() -> dict[str, Any]:
         {"seq": 2, "mode": "air"},
     ]
 
+    owner_email = None
+    if payload and payload.email:
+        owner_email = _normalize_email(str(payload.email))
+
     if USE_DB:
         with _session() as session:
+            if owner_email:
+                user = (
+                    session.query(db_module.User)
+                    .filter_by(email=owner_email)
+                    .one_or_none()
+                )
+                if user is None:
+                    raise HTTPException(status_code=404, detail="User not found")
             job = db_module.Job(job_id=job_id)
+            if owner_email and hasattr(db_module, "JobOwner"):
+                job.owner = db_module.JobOwner(job_id=job_id, email=owner_email)
             session.add(job)
             for leg in legs:
                 session.add(
@@ -298,32 +327,62 @@ def reseed() -> dict[str, Any]:
             session.flush()
     else:
         state = _load_state()
-        state.setdefault("users", {})
-        state.setdefault("jobs", {})[job_id] = {
+        users = state.setdefault("users", {})
+        if owner_email:
+            if owner_email not in users:
+                raise HTTPException(status_code=404, detail="User not found")
+        job_entry = {
             "job_id": job_id,
             "legs": legs,
             "created_at": created_at,
         }
+        if owner_email:
+            job_entry["created_by"] = owner_email
+        state.setdefault("jobs", {})[job_id] = job_entry
         _save_state(state)
 
-    return {"ok": True, "job_id": job_id, "legs": legs, "created_at": created_at}
+    return {
+        "ok": True,
+        "job_id": job_id,
+        "legs": legs,
+        "created_at": created_at,
+        "created_by": owner_email,
+    }
 
 
 @app.get("/jobs")
-def list_jobs() -> dict[str, Any]:
+def list_jobs(email: EmailStr | None = Query(default=None)) -> dict[str, Any]:
     """Return known jobs and their legs."""
+
+    filter_email = _normalize_email(str(email)) if email else None
 
     if USE_DB:
         with _session() as session:
+            owner_model = getattr(db_module, "JobOwner", None)
+            if filter_email and owner_model is None:
+                return {"jobs": []}
+
             query = session.query(db_module.Job)
             if joinedload is not None:
                 query = query.options(joinedload(db_module.Job.legs))
+                if owner_model is not None:
+                    query = query.options(joinedload(db_module.Job.owner))
+
+            if filter_email and owner_model is not None:
+                query = query.join(owner_model).filter(owner_model.email == filter_email)
+
             jobs = query.order_by(db_module.Job.job_id.desc()).all()
             serialized = [_serialize_job(job) for job in jobs]
     else:
         state = _load_state()
         stored = state.get("jobs", {})
-        serialized = [_serialize_job(job) for job in stored.values()]
+        serialized = []
+        for job in stored.values():
+            if filter_email:
+                created_by = job.get("created_by")
+                if not created_by or _normalize_email(str(created_by)) != filter_email:
+                    continue
+            serialized.append(_serialize_job(job))
         serialized.sort(key=lambda item: item.get("created_at") or "", reverse=True)
 
     return {"jobs": serialized}
