@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import uuid
 import hashlib
 import secrets
+import types
+import importlib
 import importlib.util
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -29,19 +32,41 @@ app = FastAPI()
 DB_AVAILABLE = False
 DB_ERROR = None
 
-try:  # pragma: no cover - runtime import shims for flexible deployment layouts
-    from backend import db as db_module  # type: ignore[import-self]
-except ImportError:  # pragma: no cover - package might not be installed
+BACKEND_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BACKEND_DIR.parent
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+
+def _load_db_module():
+    """Import the database module regardless of deployment layout."""
+
+    module_name = "backend.db"
     try:
-        from . import db as db_module  # type: ignore[import-self]
-    except ImportError:
-        spec = importlib.util.spec_from_file_location(
-            "db", Path(__file__).with_name("db.py")
-        )
-        if spec is None or spec.loader is None:  # pragma: no cover - defensive
-            raise
-        db_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(db_module)
+        return importlib.import_module(module_name)
+    except ModuleNotFoundError:
+        pass
+
+    spec = importlib.util.spec_from_file_location(module_name, BACKEND_DIR / "db.py")
+    if spec is None or spec.loader is None:  # pragma: no cover - defensive
+        raise ImportError("Unable to load backend.db module")
+
+    module = importlib.util.module_from_spec(spec)
+    # Ensure both the package and module entries exist for downstream imports.
+    package = sys.modules.get("backend")
+    if package is None:
+        package = types.ModuleType("backend")
+        sys.modules["backend"] = package
+    if not getattr(package, "__path__", None):
+        package.__path__ = [str(BACKEND_DIR)]
+
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+db_module = _load_db_module()
 
 try:
     DB_AVAILABLE, DB_ERROR = db_module.ensure_db()
