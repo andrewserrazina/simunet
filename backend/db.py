@@ -36,6 +36,8 @@ def _normalize_url(url: str) -> str:
 
 DATABASE_URL = _normalize_url(os.getenv("DATABASE_URL", ""))
 
+SIMUNET_CREATOR_EMAIL = "ops@simunet.local"
+
 _engine = None
 SessionLocal = None
 
@@ -138,6 +140,7 @@ def ensure_db():
     try:
         _init_engine()
         Base.metadata.create_all(_engine)
+        _apply_schema_patches()
         with _engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         print("DB init: connected and tables ensured", flush=True)
@@ -147,3 +150,36 @@ def ensure_db():
         print("DB init error:", e, flush=True)
         traceback.print_exc()
         return False, str(e)
+
+
+def _apply_schema_patches() -> None:
+    if _engine is None:
+        return
+
+    try:
+        inspector = inspect(_engine)
+        tables = set(inspector.get_table_names())
+    except Exception:
+        return
+
+    if "users" not in tables:
+        return
+
+    try:
+        columns = {column["name"] for column in inspector.get_columns("users")}
+    except Exception:
+        return
+
+    if "is_admin" in columns:
+        return
+
+    ddl = "ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE"
+    update_admin = """
+        UPDATE users
+        SET is_admin = TRUE
+        WHERE lower(email) = :email
+    """
+
+    with _engine.begin() as conn:
+        conn.execute(text(ddl))
+        conn.execute(text(update_admin), {"email": SIMUNET_CREATOR_EMAIL})
