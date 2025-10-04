@@ -41,10 +41,10 @@
         </div>
         <div class="ml-auto flex items-center gap-3">
           <button id="themeToggle" class="p-2 rounded-lg bg-white/10" title="Toggle theme"><i data-lucide="sun"></i></button>
-          <div class="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/10">
-            <div class="w-6 h-6 rounded-full grad grid place-items-center text-xs font-bold">A</div>
-            <div class="hidden sm:block text-xs text-slate-300">Logged in</div>
-          </div>
+          <button id="btnAccount" class="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/10 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/30" type="button">
+            <div id="accountAvatar" class="w-7 h-7 rounded-full grad grid place-items-center text-xs font-bold">?</div>
+            <div id="accountLabel" class="hidden sm:block text-xs text-slate-300">Sign in</div>
+          </button>
         </div>
       </header>
 
@@ -148,11 +148,58 @@
     </div>
   </div>
 
+  <div id="authSheet" class="hidden fixed inset-0 z-50 p-4 md:p-8 bg-black/70 backdrop-blur-sm">
+    <div class="relative max-w-md mx-auto mt-12 md:mt-20 bg-[#0f1430] border border-white/10 rounded-2xl p-6 shadow-2xl">
+      <button id="btnAuthClose" class="absolute top-4 right-4 text-slate-400 hover:text-slate-200" type="button" aria-label="Close">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="space-y-1 text-center mb-4">
+        <h2 class="text-lg font-semibold" id="authTitle">Welcome</h2>
+        <p class="text-sm text-slate-400" id="authSubtitle">Sign in or create an account to personalise your dashboard.</p>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-sm mb-4">
+        <button class="auth-tab px-3 py-2 rounded-lg bg-white/10 text-white" data-auth-tab="login" type="button">Log in</button>
+        <button class="auth-tab px-3 py-2 rounded-lg bg-white/5 text-slate-300 hover:bg-white/10" data-auth-tab="register" type="button">Create account</button>
+      </div>
+      <div id="authAccountSummary" class="hidden text-left mb-4 border border-white/10 rounded-xl p-4 bg-[#0b1020]/60">
+        <div class="font-medium text-slate-100" id="summaryEmail"></div>
+        <div class="text-xs text-slate-400" id="summaryCreated"></div>
+      </div>
+      <div id="authError" class="hidden mb-3 text-sm text-rose-300 bg-rose-500/10 border border-rose-400/40 rounded-lg px-3 py-2"></div>
+      <div id="authSuccess" class="hidden mb-3 text-sm text-emerald-300 bg-emerald-500/10 border border-emerald-400/40 rounded-lg px-3 py-2"></div>
+      <form id="formLogin" class="space-y-3">
+        <div class="text-left">
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="loginEmail">Email</label>
+          <input id="loginEmail" type="email" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="you@example.com" autocomplete="email" required />
+        </div>
+        <div class="text-left">
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="loginPassword">Password</label>
+          <input id="loginPassword" type="password" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="••••••••" autocomplete="current-password" minlength="8" required />
+        </div>
+        <button type="submit" class="w-full px-3 py-2 rounded-lg grad text-sm font-medium">Log in</button>
+      </form>
+      <form id="formRegister" class="space-y-3 hidden">
+        <div class="text-left">
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="registerEmail">Email</label>
+          <input id="registerEmail" type="email" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="you@example.com" autocomplete="email" required />
+        </div>
+        <div class="text-left">
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="registerPassword">Password</label>
+          <input id="registerPassword" type="password" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Min. 8 characters" autocomplete="new-password" minlength="8" required />
+        </div>
+        <p class="text-xs text-slate-400">Passwords are stored securely using PBKDF2 hashing.</p>
+        <button type="submit" class="w-full px-3 py-2 rounded-lg grad text-sm font-medium">Create account</button>
+      </form>
+      <button id="btnLogout" class="hidden w-full mt-4 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm" type="button">Sign out</button>
+    </div>
+  </div>
+
   <script>
     lucide.createIcons();
     document.getElementById('themeToggle').addEventListener('click', () => document.documentElement.classList.toggle('dark'));
 
     const ls = window.localStorage;
+    const USER_KEY = 'simunet_user';
 
     const API_BASE = (() => {
       const param = new URLSearchParams(location.search).get('api');
@@ -188,8 +235,29 @@
     const btnJobsRefresh = document.getElementById('btnJobsRefresh');
     const pages = document.querySelectorAll('[data-page]');
     const navLinks = document.querySelectorAll('[data-nav]');
+    const accountButton = document.getElementById('btnAccount');
+    const accountAvatar = document.getElementById('accountAvatar');
+    const accountLabel = document.getElementById('accountLabel');
+    const authSheet = document.getElementById('authSheet');
+    const btnAuthClose = document.getElementById('btnAuthClose');
+    const authTabs = document.querySelectorAll('.auth-tab');
+    const formLogin = document.getElementById('formLogin');
+    const formRegister = document.getElementById('formRegister');
+    const loginEmail = document.getElementById('loginEmail');
+    const loginPassword = document.getElementById('loginPassword');
+    const registerEmail = document.getElementById('registerEmail');
+    const registerPassword = document.getElementById('registerPassword');
+    const authError = document.getElementById('authError');
+    const authSuccess = document.getElementById('authSuccess');
+    const authAccountSummary = document.getElementById('authAccountSummary');
+    const summaryEmail = document.getElementById('summaryEmail');
+    const summaryCreated = document.getElementById('summaryCreated');
+    const btnLogout = document.getElementById('btnLogout');
+    const authTitle = document.getElementById('authTitle');
+    const authSubtitle = document.getElementById('authSubtitle');
 
     let jobsLoaded = false;
+    let currentUser = null;
 
     function setBadge(el, text, cls) {
       el.textContent = text;
@@ -234,12 +302,163 @@
 
     async function apiFetch(path, opts = {}) {
       const response = await fetch(API_BASE + path, opts);
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || ('HTTP ' + response.status));
+      const text = await response.text();
+      let data = {};
+      if (text) {
+        try { data = JSON.parse(text); } catch (err) { data = text; }
       }
-      return response.json();
+      if (!response.ok) {
+        if (data && typeof data === 'object' && data.detail) {
+          throw new Error(data.detail);
+        }
+        throw new Error(typeof data === 'string' ? data : ('HTTP ' + response.status));
+      }
+      if (typeof data === 'string' || data === null) {
+        return { ok: true, detail: data };
+      }
+      return data;
     }
+
+    function setCurrentUser(user) {
+      currentUser = user || null;
+      if (currentUser) {
+        ls.setItem(USER_KEY, JSON.stringify(currentUser));
+      } else {
+        ls.removeItem(USER_KEY);
+      }
+      updateAccountUI();
+    }
+
+    function loadStoredUser() {
+      try {
+        const stored = JSON.parse(ls.getItem(USER_KEY) || 'null');
+        if (stored && stored.email) {
+          currentUser = stored;
+        }
+      } catch (err) {
+        console.warn('Unable to parse stored user', err);
+      }
+      updateAccountUI();
+    }
+
+    function updateAccountUI() {
+      if (currentUser && currentUser.email) {
+        const initial = currentUser.email.charAt(0).toUpperCase();
+        accountAvatar.textContent = initial;
+        accountLabel.textContent = currentUser.email;
+        accountLabel.classList.remove('text-slate-300');
+        accountLabel.classList.add('text-slate-100');
+      } else {
+        accountAvatar.textContent = '?';
+        accountLabel.textContent = 'Sign in';
+        accountLabel.classList.add('text-slate-300');
+        accountLabel.classList.remove('text-slate-100');
+      }
+    }
+
+    function toggleAuthSheet(show, defaultTab = 'login') {
+      authSheet.classList.toggle('hidden', !show);
+      if (show) {
+        document.body.classList.add('overflow-hidden');
+        switchAuthTab(defaultTab);
+        if (!currentUser) {
+          authTitle.textContent = defaultTab === 'register' ? 'Create your SimuNet account' : 'Welcome back';
+          authSubtitle.textContent = 'Access demo tools, seed jobs, and monitor telemetry.';
+        } else {
+          authTitle.textContent = 'Account';
+          authSubtitle.textContent = 'You are signed in with ' + currentUser.email + '.';
+        }
+      } else {
+        document.body.classList.remove('overflow-hidden');
+      }
+    }
+
+    function switchAuthTab(tab) {
+      authTabs.forEach((btn) => {
+        const active = btn.dataset.authTab === tab;
+        btn.classList.toggle('bg-white/10', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('bg-white/5', !active);
+        btn.classList.toggle('text-slate-300', !active);
+      });
+
+      const showForms = !currentUser;
+      formLogin.classList.toggle('hidden', tab !== 'login' || !showForms);
+      formRegister.classList.toggle('hidden', tab !== 'register' || !showForms);
+      authAccountSummary.classList.toggle('hidden', !!showForms || !currentUser);
+      btnLogout.classList.toggle('hidden', !currentUser);
+
+      if (currentUser) {
+        summaryEmail.textContent = currentUser.email;
+        summaryCreated.textContent = currentUser.created_at ? 'Joined ' + fmtDate(currentUser.created_at) : '';
+      }
+
+      authError.classList.add('hidden');
+      authSuccess.classList.add('hidden');
+    }
+
+    accountButton.addEventListener('click', () => {
+      toggleAuthSheet(true, currentUser ? 'login' : 'login');
+    });
+
+    btnAuthClose.addEventListener('click', () => toggleAuthSheet(false));
+
+    authTabs.forEach((btn) => {
+      btn.addEventListener('click', () => switchAuthTab(btn.dataset.authTab || 'login'));
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !authSheet.classList.contains('hidden')) {
+        toggleAuthSheet(false);
+      }
+    });
+
+    btnLogout.addEventListener('click', () => {
+      setCurrentUser(null);
+      toggleAuthSheet(false);
+      statusEl.textContent = 'Signed out.';
+    });
+
+    async function handleAuthSubmit(type, email, password) {
+      if (!email || !password) {
+        authError.textContent = 'Email and password required.';
+        authError.classList.remove('hidden');
+        return;
+      }
+      authError.classList.add('hidden');
+      authSuccess.classList.add('hidden');
+      const path = type === 'register' ? '/auth/register' : '/auth/login';
+      try {
+        const res = await apiFetch(path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        if (res && res.user) {
+          setCurrentUser(res.user);
+          authSuccess.textContent = type === 'register' ? 'Account created! You are now signed in.' : 'Signed in successfully.';
+          authSuccess.classList.remove('hidden');
+          summaryEmail.textContent = res.user.email;
+          summaryCreated.textContent = res.user.created_at ? 'Joined ' + fmtDate(res.user.created_at) : '';
+          switchAuthTab('login');
+          toggleAuthSheet(false);
+          statusEl.textContent = `Signed in as ${res.user.email}.`;
+        }
+      } catch (err) {
+        authError.textContent = (err && err.message) ? err.message : 'Unable to complete request.';
+        authError.classList.remove('hidden');
+      }
+    }
+
+    formLogin.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      handleAuthSubmit('login', loginEmail.value.trim().toLowerCase(), loginPassword.value);
+    });
+
+    formRegister.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      handleAuthSubmit('register', registerEmail.value.trim().toLowerCase(), registerPassword.value);
+    });
 
     async function checkStatus(updateMessage = true) {
       setBadge(apiStatus, 'api: checking...', 'border-white/10 text-slate-400');
@@ -476,6 +695,7 @@
     checkStatus();
     setInterval(() => checkStatus(false), 45000);
     loadJobs(false);
+    loadStoredUser();
   </script>
 </body>
 </html>
