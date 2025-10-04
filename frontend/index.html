@@ -60,12 +60,12 @@
               <div class="text-2xl font-bold mt-1"><span id="kpiPoints">0</span></div>
             </div>
             <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
-              <div class="text-slate-300 text-sm">Database</div>
-              <div class="text-2xl font-bold mt-1"><span id="kpiDb">offline</span></div>
+              <div class="text-slate-300 text-sm">My Jobs</div>
+              <div class="text-2xl font-bold mt-1"><span id="kpiJobs">0</span></div>
             </div>
             <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
-              <div class="text-slate-300 text-sm">API</div>
-              <div class="text-2xl font-bold mt-1"><span id="kpiApi">checking…</span></div>
+              <div class="text-slate-300 text-sm">Signed In</div>
+              <div class="text-2xl font-bold mt-1 truncate" title="Guest"><span id="kpiAccount">Guest</span></div>
             </div>
           </section>
 
@@ -221,8 +221,8 @@
     const statusEl = document.getElementById('status');
     const kpiFlights = document.getElementById('kpiFlights');
     const kpiPoints = document.getElementById('kpiPoints');
-    const kpiDb = document.getElementById('kpiDb');
-    const kpiApi = document.getElementById('kpiApi');
+    const kpiJobs = document.getElementById('kpiJobs');
+    const kpiAccount = document.getElementById('kpiAccount');
     const dbStatus = document.getElementById('dbStatus');
     const apiStatus = document.getElementById('apiStatus');
     const flightIdEl = document.getElementById('flightId');
@@ -233,6 +233,7 @@
     const jobsEmpty = document.getElementById('jobsEmpty');
     const jobsMeta = document.getElementById('jobsMeta');
     const btnJobsRefresh = document.getElementById('btnJobsRefresh');
+    const defaultJobsEmpty = jobsEmpty ? jobsEmpty.innerHTML : '';
     const pages = document.querySelectorAll('[data-page]');
     const navLinks = document.querySelectorAll('[data-nav]');
     const accountButton = document.getElementById('btnAccount');
@@ -269,6 +270,19 @@
       const d = new Date(value);
       if (Number.isNaN(d.getTime())) return value;
       return d.toLocaleString();
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => {
+        switch (char) {
+          case '&': return '&amp;';
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '"': return '&quot;';
+          case "'": return '&#39;';
+          default: return char;
+        }
+      });
     }
 
     function saveRecent(fid, count) {
@@ -327,18 +341,32 @@
         ls.removeItem(USER_KEY);
       }
       updateAccountUI();
+      if (kpiAccount) {
+        const label = currentUser && currentUser.email ? currentUser.email : 'Guest';
+        kpiAccount.textContent = label;
+        if (kpiAccount.parentElement) {
+          kpiAccount.parentElement.setAttribute('title', label);
+        }
+      }
+      if (!currentUser && kpiJobs) {
+        kpiJobs.textContent = '0';
+      }
+      jobsLoaded = false;
+      loadJobs(false);
     }
 
     function loadStoredUser() {
+      let stored = null;
       try {
-        const stored = JSON.parse(ls.getItem(USER_KEY) || 'null');
-        if (stored && stored.email) {
-          currentUser = stored;
-        }
+        stored = JSON.parse(ls.getItem(USER_KEY) || 'null');
       } catch (err) {
         console.warn('Unable to parse stored user', err);
       }
-      updateAccountUI();
+      if (stored && stored.email) {
+        setCurrentUser(stored);
+        return;
+      }
+      setCurrentUser(null);
     }
 
     function updateAccountUI() {
@@ -464,19 +492,15 @@
       setBadge(apiStatus, 'api: checking...', 'border-white/10 text-slate-400');
       try {
         const s = await apiFetch('/status');
-        kpiDb.textContent = s.db ? 'online' : 'offline';
         setBadge(dbStatus, s.db ? 'db: online' : 'db: offline', s.db ? 'border-emerald-400/40 text-emerald-300' : 'border-amber-400/40 text-amber-300');
         setBadge(apiStatus, 'api: reachable', 'border-emerald-400/40 text-emerald-300');
-        kpiApi.textContent = 'reachable';
         if (updateMessage) {
           statusEl.textContent = 'API ready.';
         }
       } catch (e) {
         console.error(e);
-        kpiDb.textContent = 'offline';
         setBadge(dbStatus, 'db: error', 'border-rose-400/40 text-rose-300');
         setBadge(apiStatus, 'api: unreachable', 'border-rose-400/40 text-rose-300');
-        kpiApi.textContent = 'unreachable';
         if (updateMessage) {
           statusEl.textContent = 'API not reachable.';
         }
@@ -494,11 +518,40 @@
     });
 
     async function loadJobs(updateStatus = true) {
+      if (!jobsTable || !jobsEmpty) {
+        return;
+      }
+
+      if (!currentUser || !currentUser.email) {
+        jobsLoaded = false;
+        jobsTable.innerHTML = '';
+        if (jobsTableWrap) {
+          jobsTableWrap.classList.add('hidden');
+        }
+        jobsEmpty.classList.remove('hidden');
+        jobsEmpty.innerHTML = 'Sign in to view your jobs.';
+        if (jobsMeta) {
+          jobsMeta.textContent = 'Sign in required';
+        }
+        if (kpiJobs) {
+          kpiJobs.textContent = '0';
+        }
+        if (updateStatus) {
+          statusEl.textContent = 'Sign in to view your jobs.';
+        }
+        return;
+      }
+
       if (jobsMeta) {
         jobsMeta.textContent = 'Loading jobs…';
       }
+
       try {
-        const res = await apiFetch('/jobs');
+        const email = currentUser.email.toLowerCase();
+        const res = await apiFetch(`/jobs?email=${encodeURIComponent(email)}`);
+        if (!currentUser || currentUser.email.toLowerCase() !== email) {
+          return;
+        }
         const jobs = Array.isArray(res.jobs) ? res.jobs : [];
         renderJobs(jobs);
         jobsLoaded = true;
@@ -511,6 +564,14 @@
         if (jobsMeta) {
           jobsMeta.textContent = 'Jobs unavailable';
         }
+        if (kpiJobs) {
+          kpiJobs.textContent = '0';
+        }
+        if (jobsTableWrap) {
+          jobsTableWrap.classList.add('hidden');
+        }
+        jobsEmpty.classList.remove('hidden');
+        jobsEmpty.innerHTML = 'Jobs unavailable.';
         if (updateStatus) {
           statusEl.textContent = 'Unable to load jobs.';
         }
@@ -519,16 +580,37 @@
 
     function renderJobs(jobs) {
       jobsTable.innerHTML = '';
-      const hasJobs = jobs.length > 0;
-      jobsTableWrap.classList.toggle('hidden', !hasJobs);
+      const hasJobs = Array.isArray(jobs) && jobs.length > 0;
+      if (jobsTableWrap) {
+        jobsTableWrap.classList.toggle('hidden', !hasJobs);
+      }
       jobsEmpty.classList.toggle('hidden', hasJobs);
       if (!hasJobs) {
-        jobsMeta.textContent = 'No jobs yet';
+        const signedIn = currentUser && currentUser.email;
+        const safeEmail = signedIn ? escapeHtml(currentUser.email) : '';
+        const message = signedIn
+          ? `No jobs yet for <strong>${safeEmail}</strong>. Use <strong>Seed &amp; Start</strong> to create one.`
+          : 'Sign in to view your jobs.';
+        jobsEmpty.innerHTML = message;
+        if (jobsMeta) {
+          jobsMeta.textContent = signedIn ? `No jobs yet for ${currentUser.email}` : 'Sign in required';
+        }
+        if (kpiJobs) {
+          kpiJobs.textContent = '0';
+        }
         return;
       }
 
+      jobsEmpty.innerHTML = defaultJobsEmpty;
+
       const stamp = new Date().toLocaleTimeString();
-      jobsMeta.textContent = `${jobs.length} job${jobs.length === 1 ? '' : 's'} • updated ${stamp}`;
+      if (jobsMeta) {
+        const ownerLabel = currentUser && currentUser.email ? ` • ${currentUser.email}` : '';
+        jobsMeta.textContent = `${jobs.length} job${jobs.length === 1 ? '' : 's'}${ownerLabel} • updated ${stamp}`;
+      }
+      if (kpiJobs) {
+        kpiJobs.textContent = String(jobs.length);
+      }
 
       jobs.forEach((job) => {
         const legs = Array.isArray(job.legs) ? job.legs : [];
@@ -546,9 +628,19 @@
     }
 
     document.getElementById('btnSeed').addEventListener('click', async () => {
+      if (!currentUser || !currentUser.email) {
+        statusEl.textContent = 'Sign in to create demo jobs.';
+        toggleAuthSheet(true, 'login');
+        return;
+      }
       statusEl.textContent = 'Seeding...';
       try {
-        const seeded = await apiFetch('/dev/reseed', { method: 'POST' });
+        const email = currentUser.email.toLowerCase();
+        const seeded = await apiFetch('/dev/reseed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
         if (seeded && seeded.job_id) {
           await loadJobs(false);
         }
@@ -689,13 +781,13 @@
       showPage(page, { updateHash: false });
     });
 
+    loadStoredUser();
+
     const initialPage = location.hash.replace('#', '') || 'dashboard';
     showPage(initialPage, { updateHash: false });
 
     checkStatus();
     setInterval(() => checkStatus(false), 45000);
-    loadJobs(false);
-    loadStoredUser();
   </script>
 </body>
 </html>
