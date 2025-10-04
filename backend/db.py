@@ -223,19 +223,17 @@ def _apply_schema_patches() -> None:
     except Exception:
         return
 
-    if "is_admin" in columns:
-        return
+    if "is_admin" not in columns:
+        ddl = "ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE"
+        update_admin = """
+            UPDATE users
+            SET is_admin = TRUE
+            WHERE lower(email) = :email
+        """
 
-    ddl = "ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE"
-    update_admin = """
-        UPDATE users
-        SET is_admin = TRUE
-        WHERE lower(email) = :email
-    """
-
-    with _engine.begin() as conn:
-        conn.execute(text(ddl))
-        conn.execute(text(update_admin), {"email": SIMUNET_CREATOR_EMAIL})
+        with _engine.begin() as conn:
+            conn.execute(text(ddl))
+            conn.execute(text(update_admin), {"email": SIMUNET_CREATOR_EMAIL})
 
     # Ensure new columns exist for collaborative missions without requiring a full migration tool.
     def _ensure_column(table: str, column: str, ddl_sql: str) -> None:
