@@ -30,6 +30,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-sA+4pslWmQ7G/9J8g9kuFh3F1dL0gZEiw5prZ5F8JkM="
+    crossorigin=""
+  />
   <style>
     :root { color-scheme: dark; }
     body { font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
@@ -41,6 +47,91 @@
     }
     .card-gradient {
       background: linear-gradient(135deg, rgba(79, 139, 253, 0.08), rgba(111, 76, 255, 0.08));
+    }
+    .map-pin {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: #020617;
+      box-shadow: 0 12px 24px -12px rgba(15, 23, 42, 0.75);
+    }
+    .map-pin.flight { background: rgba(79, 139, 253, 0.95); }
+    .map-pin.convoy { background: rgba(52, 211, 153, 0.85); }
+    .map-legend-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(2, 6, 23, 0.45);
+    }
+    .map-legend-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    .map-legend-badge.flight {
+      background: rgba(79, 139, 253, 0.25);
+      color: rgba(79, 139, 253, 0.95);
+    }
+    .map-legend-badge.convoy {
+      background: rgba(52, 211, 153, 0.18);
+      color: rgba(110, 231, 183, 0.95);
+    }
+    .map-legend-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #f8fafc;
+      margin: 0;
+    }
+    .map-legend-callsign {
+      font-size: 0.65rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(148, 163, 184, 0.8);
+      margin: 4px 0 0;
+    }
+    .map-legend-details {
+      font-size: 0.7rem;
+      color: rgba(148, 163, 184, 0.75);
+      margin: 6px 0 0;
+      line-height: 1.4;
+    }
+    .map-popup {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .map-popup-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #f8fafc;
+      margin: 0;
+    }
+    .map-popup-callsign {
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(148, 163, 184, 0.9);
+      margin: 0;
+    }
+    .map-popup-details {
+      font-size: 0.7rem;
+      color: rgba(148, 163, 184, 0.85);
+      margin: 0;
+      line-height: 1.4;
     }
   </style>
 </head>
@@ -60,6 +151,7 @@
         </div>
       </div>
       <div class="hidden items-center gap-10 text-sm text-slate-300 md:flex">
+        <a class="transition hover:text-white" href="#live-map">Live map</a>
         <a class="transition hover:text-white" href="#how">How it works</a>
         <a class="transition hover:text-white" href="#features">Platform</a>
         <a class="transition hover:text-white" href="#alpha">Alpha Trial</a>
@@ -156,6 +248,35 @@
   </header>
 
   <main class="relative z-10 space-y-32 bg-midnight pb-24">
+    <section id="live-map" class="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 pt-24">
+      <div class="space-y-4 text-center">
+        <p class="text-xs uppercase tracking-[0.4em] text-accentSoft">Live Network</p>
+        <h2 class="font-display text-3xl font-semibold text-white sm:text-4xl">Follow active flights and convoys</h2>
+        <p class="mx-auto max-w-3xl text-base text-slate-300">
+          See how crews around the world are linking up inside SimuNet right now. The live map highlights real-time positions,
+          dispatch notes, and squad channels so you can jump into the action or schedule your next group run.
+        </p>
+      </div>
+      <div class="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+        <div class="overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-1">
+          <div id="simunet-map" class="h-[28rem] w-full rounded-[1.35rem]"></div>
+        </div>
+        <div class="space-y-6 rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div>
+            <h3 class="font-display text-xl font-semibold text-white">Right now on SimuNet</h3>
+            <p class="mt-2 text-sm text-slate-400">Tap a pin on the map to see crew call signs, mission notes, and their shared
+              comms channel.</p>
+          </div>
+          <ul class="space-y-4 text-sm text-slate-300" id="simunet-map-legend"></ul>
+          <div class="rounded-2xl border border-white/10 bg-black/30 p-5">
+            <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Need an invite?</p>
+            <p class="mt-3 text-sm text-slate-300">Bring your flight wing or convoy crew into the Alpha and claim your launch week
+              call sign.</p>
+            <a class="mt-4 inline-flex items-center justify-center rounded-full bg-accent px-5 py-2 text-xs font-semibold text-midnight transition hover:bg-accent/90" href="#apply">Request access</a>
+          </div>
+        </div>
+      </div>
+    </section>
     <section id="how" class="mx-auto grid max-w-5xl gap-12 px-6 pt-24 text-slate-200 md:grid-cols-[0.8fr_1fr] md:items-center">
       <div class="space-y-6">
         <h2 class="font-display text-3xl font-semibold text-white sm:text-4xl">How SimuNet works</h2>
@@ -345,8 +466,98 @@
     </div>
   </footer>
 
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-p4Vd3G0uL3R8z5d2v7kG2WfP2P0L1pwuKIBjZr3Su2E="
+    crossorigin=""
+  ></script>
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
+
+    const activeOps = [
+      {
+        type: 'flight',
+        name: 'Transatlantic Community Hop',
+        callsign: 'SNX320',
+        location: [52.3086, -20.0],
+        details: 'A320neo • JFK → Heathrow • Squad Comms: #wing-gamma',
+      },
+      {
+        type: 'flight',
+        name: 'Pacific Bush Run',
+        callsign: 'SNB48',
+        location: [47.6205, -122.3493],
+        details: 'Cessna 208 • PNW bush route • Squad Comms: #seaplane-cove',
+      },
+      {
+        type: 'convoy',
+        name: 'Nordic Freight Push',
+        callsign: 'SN-HAUL7',
+        location: [63.4305, 10.3951],
+        details: '5x Volvo FH16 • Oslo → Trondheim • Squad Comms: #vtc-northbound',
+      },
+      {
+        type: 'convoy',
+        name: 'Route 66 Night Run',
+        callsign: 'SN-R66',
+        location: [35.4676, -97.5164],
+        details: 'Kenworth W900 • Oklahoma City meetup • Squad Comms: #night-ops',
+      },
+    ];
+
+    const map = L.map('simunet-map', {
+      zoomControl: false,
+      scrollWheelZoom: false,
+    }).setView([37.5, -20], 3);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    const legendList = document.getElementById('simunet-map-legend');
+
+    const icons = {
+      flight: L.divIcon({
+        className: 'flight-icon',
+        html: '<span class="map-pin flight">✈</span>',
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+      }),
+      convoy: L.divIcon({
+        className: 'convoy-icon',
+        html: '<span class="map-pin convoy">🚛</span>',
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+      }),
+    };
+
+    activeOps.forEach((op) => {
+      const marker = L.marker(op.location, { icon: icons[op.type] }).addTo(map);
+      marker.bindPopup(
+        `<div class="map-popup">` +
+          `<p class="map-popup-title">${op.name}</p>` +
+          `<p class="map-popup-callsign">${op.callsign}</p>` +
+          `<p class="map-popup-details">${op.details}</p>` +
+        `</div>`
+      );
+
+      const item = document.createElement('li');
+      item.className = 'map-legend-item';
+      item.innerHTML = `
+        <span class="map-legend-badge ${op.type === 'flight' ? 'flight' : 'convoy'}">
+          ${op.type === 'flight' ? '✈' : '🚛'}
+        </span>
+        <div>
+          <p class="map-legend-title">${op.name}</p>
+          <p class="map-legend-callsign">${op.callsign}</p>
+          <p class="map-legend-details">${op.details}</p>
+        </div>
+      `;
+      legendList.appendChild(item);
+    });
   </script>
 </body>
 </html>
