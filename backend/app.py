@@ -2490,4 +2490,4 @@ def spa_fallback(full_path: str):
     if os.path.exists(index):
         return FileResponse(index)
 
-    raise HTTPException(status_code=404
+    raise HTTPException(status_code=404)
