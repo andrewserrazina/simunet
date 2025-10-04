@@ -507,17 +507,93 @@ def _build_simunet_job(now: datetime | None = None) -> dict[str, Any]:
 
 def _serialize_user(user: Any) -> dict[str, Any]:
     if isinstance(user, dict):
+        email_value = user.get("email")
+        normalized_email = _normalize_email(str(email_value)) if email_value else None
+        is_admin_value = user.get("is_admin")
+        if is_admin_value is None and normalized_email:
+            is_admin_value = normalized_email == SIMUNET_CREATOR_EMAIL
         return {
             "id": user.get("id"),
-            "email": user.get("email"),
+            "email": email_value,
             "created_at": user.get("created_at"),
+            "is_admin": bool(is_admin_value),
         }
+
+    email_value = getattr(user, "email", None)
+    normalized_email = _normalize_email(str(email_value)) if email_value else None
+    is_admin_value = getattr(user, "is_admin", None)
+    if is_admin_value is None and normalized_email:
+        is_admin_value = normalized_email == SIMUNET_CREATOR_EMAIL
 
     return {
         "id": getattr(user, "id", None),
-        "email": getattr(user, "email", None),
+        "email": email_value,
         "created_at": _isoformat(getattr(user, "created_at", None)),
+        "is_admin": bool(is_admin_value),
     }
+
+
+def _user_is_admin(user: Any, email: str | None = None) -> bool:
+    if isinstance(user, dict):
+        flag = user.get("is_admin")
+        if flag is not None:
+            return bool(flag)
+        candidate = user.get("email")
+        if candidate:
+            return _normalize_email(str(candidate)) == SIMUNET_CREATOR_EMAIL
+        if email:
+            return _normalize_email(email) == SIMUNET_CREATOR_EMAIL
+        return False
+
+    attr = getattr(user, "is_admin", None)
+    if attr is not None:
+        return bool(attr)
+
+    candidate = email or getattr(user, "email", None)
+    if candidate:
+        return _normalize_email(str(candidate)) == SIMUNET_CREATOR_EMAIL
+    return False
+
+
+def _require_admin(actor_email: str | None) -> str:
+    if not actor_email:
+        raise HTTPException(status_code=401, detail="Admin privileges required")
+
+    normalized = _normalize_email(str(actor_email))
+
+    if USE_DB:
+        with _session() as session:
+            user = session.query(db_module.User).filter_by(email=normalized).one_or_none()
+            if user is None:
+                raise HTTPException(status_code=404, detail="User not found")
+            if not _user_is_admin(user, normalized):
+                raise HTTPException(status_code=403, detail="Admin privileges required")
+    else:
+        state = _load_state()
+        users = state.setdefault("users", {})
+        user = users.get(normalized)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        if not _user_is_admin(user, normalized):
+            raise HTTPException(status_code=403, detail="Admin privileges required")
+
+    return normalized
+
+
+def _count_admins_db(session: Any) -> int:
+    if not USE_DB:
+        return 0
+    user_model = getattr(db_module, "User", None)
+    if user_model is None:
+        return 0
+    admin_attr = getattr(user_model, "is_admin", None)
+    if admin_attr is None:
+        return 0
+    return session.query(user_model).filter(admin_attr.is_(True)).count()
+
+
+def _count_admins_state(users: dict[str, Any]) -> int:
+    return sum(1 for email, data in users.items() if _user_is_admin(data, email))
 
 
 class TelemetryPayload(BaseModel):
@@ -557,6 +633,7 @@ class JobCreatePayload(BaseModel):
     deadline: datetime
     notes: str | None = Field(default=None, max_length=600)
     created_by: EmailStr
+    assigned_to: EmailStr | None = None
     legs: list[JobLegPayload] = Field(default_factory=list)
 
 
@@ -576,6 +653,13 @@ class ReseedPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     email: EmailStr | None = None
+
+
+class AdminUserUpdatePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    is_admin: bool | None = None
+    password: str | None = Field(default=None, min_length=8)
 
 
 FRONTEND_DIR = os.getenv(
@@ -604,11 +688,19 @@ def register(payload: AuthPayload) -> dict[str, Any]:
             existing = session.query(db_module.User).filter_by(email=email).one_or_none()
             if existing:
                 raise HTTPException(status_code=409, detail="Email already registered")
-            user = db_module.User(
-                email=email,
-                hashed_password=_hash_password(password),
-                created_at=datetime.utcnow(),
-            )
+            is_admin = email == SIMUNET_CREATOR_EMAIL
+            if not is_admin and hasattr(db_module.User, "is_admin"):
+                is_admin = _count_admins_db(session) == 0
+
+            user_kwargs = {
+                "email": email,
+                "hashed_password": _hash_password(password),
+                "created_at": datetime.utcnow(),
+            }
+            if hasattr(db_module.User, "is_admin"):
+                user_kwargs["is_admin"] = bool(is_admin)
+
+            user = db_module.User(**user_kwargs)
             session.add(user)
             session.flush()
             return {"ok": True, "user": _serialize_user(user)}
@@ -619,11 +711,13 @@ def register(payload: AuthPayload) -> dict[str, Any]:
         raise HTTPException(status_code=409, detail="Email already registered")
     created_at = _now_iso()
     user_id = uuid.uuid4().hex[:12]
+    is_admin = email == SIMUNET_CREATOR_EMAIL or _count_admins_state(users) == 0
     users[email] = {
         "id": user_id,
         "email": email,
         "hashed_password": _hash_password(password),
         "created_at": created_at,
+        "is_admin": bool(is_admin),
     }
     _save_state(state)
     return {"ok": True, "user": _serialize_user(users[email])}
@@ -642,6 +736,9 @@ def login(payload: AuthPayload) -> dict[str, Any]:
             if getattr(user, "created_at", None) is None:
                 user.created_at = datetime.utcnow()
                 session.flush()
+            if email == SIMUNET_CREATOR_EMAIL and hasattr(user, "is_admin") and not _user_is_admin(user, email):
+                user.is_admin = True  # type: ignore[assignment]
+                session.flush()
             return {"ok": True, "user": _serialize_user(user)}
 
     state = _load_state()
@@ -649,6 +746,10 @@ def login(payload: AuthPayload) -> dict[str, Any]:
     stored = users.get(email)
     if not stored or not _verify_password(password, stored.get("hashed_password", "")):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    if "is_admin" not in stored:
+        stored["is_admin"] = _user_is_admin(stored, email)
+        users[email] = stored
+        _save_state(state)
     return {"ok": True, "user": _serialize_user(stored)}
 
 
@@ -709,17 +810,24 @@ def create_job(payload: JobCreatePayload) -> dict[str, Any]:
     """Create a new Microsoft Flight Simulator job."""
 
     creator_email = _normalize_email(str(payload.created_by))
+    assignee_email = _normalize_email(str(payload.assigned_to)) if payload.assigned_to else None
 
     if USE_DB:
         with _session() as session:
             user = session.query(db_module.User).filter_by(email=creator_email).one_or_none()
             if user is None:
                 raise HTTPException(status_code=404, detail="User not found")
+            if assignee_email:
+                assignee = session.query(db_module.User).filter_by(email=assignee_email).one_or_none()
+                if assignee is None:
+                    raise HTTPException(status_code=404, detail="Assignee not found")
     else:
         state = _load_state()
         users = state.setdefault("users", {})
         if creator_email not in users:
             raise HTTPException(status_code=404, detail="User not found")
+        if assignee_email and assignee_email not in users:
+            raise HTTPException(status_code=404, detail="Assignee not found")
 
     legs = [
         {"seq": leg.seq, "mode": leg.mode}
@@ -744,6 +852,7 @@ def create_job(payload: JobCreatePayload) -> dict[str, Any]:
         deadline=payload.deadline,
         notes=payload.notes.strip() if payload.notes else None,
         legs=legs,
+        assigned_to=assignee_email,
     )
 
     return {"ok": True, "job": job_data}
@@ -899,6 +1008,202 @@ def list_jobs(email: EmailStr | None = Query(default=None)) -> dict[str, Any]:
 
     response = {"available": available, "mine": mine if filter_email else []}
     return response
+
+
+@app.get("/admin/jobs")
+def admin_list_jobs(actor: EmailStr = Query(..., alias="actor")) -> dict[str, Any]:
+    """Return every job for administrator dashboards."""
+
+    _require_admin(str(actor))
+
+    jobs: list[dict[str, Any]] = []
+    if USE_DB:
+        with _session() as session:
+            query = session.query(db_module.Job)
+            if joinedload is not None:
+                query = query.options(joinedload(db_module.Job.legs))
+                if hasattr(db_module, "JobOwner"):
+                    query = query.options(joinedload(db_module.Job.owner))
+                if hasattr(db_module, "JobDetail"):
+                    query = query.options(joinedload(db_module.Job.detail))
+            records = query.order_by(db_module.Job.job_id.desc()).all()
+            jobs = [_serialize_job(job) for job in records]
+    else:
+        state = _load_state()
+        stored = state.get("jobs", {})
+        jobs = [_serialize_job(job) for job in stored.values()]
+    jobs.sort(key=lambda item: (item.get("created_at") or "", item.get("job_id") or ""), reverse=True)
+    return {"ok": True, "jobs": jobs}
+
+
+@app.delete("/admin/jobs/{job_id}")
+def admin_delete_job(job_id: str, actor: EmailStr = Query(..., alias="actor")) -> dict[str, Any]:
+    """Delete a job regardless of claim status."""
+
+    _require_admin(str(actor))
+
+    if USE_DB:
+        with _session() as session:
+            job = session.query(db_module.Job).filter_by(job_id=job_id).one_or_none()
+            if job is None:
+                raise HTTPException(status_code=404, detail="Job not found")
+            session.delete(job)
+            session.flush()
+            return {"ok": True, "job_id": job_id}
+
+    state = _load_state()
+    jobs = state.setdefault("jobs", {})
+    job_entry = jobs.pop(job_id, None)
+    if job_entry is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    _save_state(state)
+    return {"ok": True, "job_id": job_id, "job": _serialize_job(job_entry)}
+
+
+@app.get("/admin/users")
+def admin_list_users(actor: EmailStr = Query(..., alias="actor")) -> dict[str, Any]:
+    """Return all user profiles."""
+
+    _require_admin(str(actor))
+
+    if USE_DB:
+        with _session() as session:
+            records = (
+                session.query(db_module.User)
+                .order_by(db_module.User.email.asc())
+                .all()
+            )
+            users = [_serialize_user(record) for record in records]
+            return {"ok": True, "users": users}
+
+    state = _load_state()
+    stored_users = state.get("users", {})
+    users = []
+    for email, data in sorted(stored_users.items()):
+        if "email" not in data:
+            data = dict(data)
+            data["email"] = email
+        users.append(_serialize_user(data))
+    return {"ok": True, "users": users}
+
+
+@app.patch("/admin/users/{email}")
+def admin_update_user(
+    email: str,
+    payload: AdminUserUpdatePayload,
+    actor: EmailStr = Query(..., alias="actor"),
+) -> dict[str, Any]:
+    """Update admin status or password for a user profile."""
+
+    actor_email = _require_admin(str(actor))
+    target_email = _normalize_email(email)
+
+    if USE_DB:
+        with _session() as session:
+            user = session.query(db_module.User).filter_by(email=target_email).one_or_none()
+            if user is None:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            updated = False
+            if payload.is_admin is not None and hasattr(user, "is_admin"):
+                desired = bool(payload.is_admin)
+                current_admin = _user_is_admin(user, target_email)
+                if desired != current_admin:
+                    if not desired and _count_admins_db(session) <= 1 and current_admin:
+                        raise HTTPException(status_code=400, detail="Cannot remove last admin")
+                    user.is_admin = desired  # type: ignore[assignment]
+                    updated = True
+
+            if payload.password:
+                user.hashed_password = _hash_password(payload.password)
+                updated = True
+
+            if updated:
+                session.flush()
+
+            return {"ok": True, "user": _serialize_user(user)}
+
+    state = _load_state()
+    users = state.setdefault("users", {})
+    user = users.get(target_email)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    updated = False
+    if payload.is_admin is not None:
+        desired = bool(payload.is_admin)
+        current_admin = _user_is_admin(user, target_email)
+        if desired != current_admin:
+            if not desired and _count_admins_state(users) <= 1 and current_admin:
+                raise HTTPException(status_code=400, detail="Cannot remove last admin")
+            user["is_admin"] = desired
+            updated = True
+
+    if payload.password:
+        user["hashed_password"] = _hash_password(payload.password)
+        updated = True
+
+    if updated:
+        users[target_email] = user
+        _save_state(state)
+
+    return {"ok": True, "user": _serialize_user(user)}
+
+
+@app.delete("/admin/users/{email}")
+def admin_delete_user(email: str, actor: EmailStr = Query(..., alias="actor")) -> dict[str, Any]:
+    """Remove a user account and release related assignments."""
+
+    actor_email = _require_admin(str(actor))
+    target_email = _normalize_email(email)
+
+    if USE_DB:
+        with _session() as session:
+            user = session.query(db_module.User).filter_by(email=target_email).one_or_none()
+            if user is None:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            if _user_is_admin(user, target_email) and _count_admins_db(session) <= 1:
+                raise HTTPException(status_code=400, detail="Cannot remove last admin")
+
+            owner_cls = getattr(db_module, "JobOwner", None)
+            if owner_cls is not None:
+                owners = session.query(owner_cls).filter_by(email=target_email).all()
+                for owner in owners:
+                    session.delete(owner)
+
+            detail_cls = getattr(db_module, "JobDetail", None)
+            if detail_cls is not None:
+                details = session.query(detail_cls).filter_by(assigned_to=target_email).all()
+                for detail in details:
+                    detail.assigned_to = None
+
+            session.delete(user)
+            session.flush()
+
+            if target_email == actor_email:
+                return {"ok": True, "deleted": target_email, "self": True}
+            return {"ok": True, "deleted": target_email}
+
+    state = _load_state()
+    users = state.setdefault("users", {})
+    user = users.get(target_email)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if _user_is_admin(user, target_email) and _count_admins_state(users) <= 1:
+        raise HTTPException(status_code=400, detail="Cannot remove last admin")
+
+    users.pop(target_email, None)
+
+    jobs = state.setdefault("jobs", {})
+    for job in jobs.values():
+        assignee = job.get("assigned_to")
+        if assignee and _normalize_email(str(assignee)) == target_email:
+            job["assigned_to"] = None
+
+    _save_state(state)
+    return {"ok": True, "deleted": target_email}
 
 
 @app.post("/flights", status_code=status.HTTP_201_CREATED)
