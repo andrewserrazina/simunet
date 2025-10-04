@@ -15,7 +15,6 @@ from sqlalchemy import (
     UniqueConstraint,
     Text,
     Boolean,
-    inspect,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
