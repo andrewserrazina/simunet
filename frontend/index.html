@@ -121,25 +121,86 @@
           <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 class="text-xl font-semibold">Jobs Board</h2>
-              <p class="text-sm text-slate-400">Monitor assignments created by the dashboard or your connectors.</p>
+              <p class="text-sm text-slate-400">Create, browse, and claim Microsoft Flight Simulator missions.</p>
             </div>
             <div class="flex items-center gap-2">
               <span id="jobsMeta" class="text-xs text-slate-400">—</span>
+              <button id="btnJobsGenerate" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm flex items-center gap-2">
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                <span>SimuNet auto</span>
+              </button>
               <button id="btnJobsRefresh" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm">Refresh</button>
             </div>
           </div>
 
-          <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4 space-y-4">
-            <div class="overflow-auto" id="jobsTableWrap">
-              <table class="w-full text-sm">
-                <thead class="text-left text-slate-300">
-                  <tr><th class="py-2">Job ID</th><th class="py-2">Legs</th><th class="py-2">Created</th></tr>
-                </thead>
-                <tbody id="jobsTable" class="text-slate-400"></tbody>
-              </table>
+          <div class="grid gap-4 lg:grid-cols-3">
+            <div class="space-y-4">
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+                <div class="flex items-center justify-between gap-2 mb-3">
+                  <h3 class="text-lg font-semibold text-slate-100">Create Flight Job</h3>
+                  <span class="text-xs uppercase tracking-wide text-indigo-300/80">Microsoft Flight Simulator</span>
+                </div>
+                <form id="formCreateJob" class="space-y-3">
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobTitle">Mission title</label>
+                    <input id="jobTitle" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Mountain relief drop" required />
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobPayload">Payload</label>
+                    <input id="jobPayload" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Emergency supplies" required />
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobWeight">Weight (lbs)</label>
+                      <input id="jobWeight" type="number" min="0" step="0.1" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="7500" />
+                    </div>
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobDeadline">Deadline</label>
+                      <input id="jobDeadline" type="datetime-local" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" required />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobDeparture">Departure</label>
+                      <input id="jobDeparture" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 uppercase" placeholder="KSEA" required maxlength="8" />
+                    </div>
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobArrival">Arrival</label>
+                      <input id="jobArrival" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 uppercase" placeholder="CYVR" required maxlength="8" />
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobNotes">Notes</label>
+                    <textarea id="jobNotes" rows="3" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Brief the pilot on weather, cargo handling, or other specifics."></textarea>
+                  </div>
+                  <button type="submit" class="w-full px-3 py-2 rounded-lg grad text-sm font-medium">Publish job</button>
+                </form>
+                <p class="mt-3 text-xs text-slate-400">Jobs are visible to everyone until claimed. Signing in is required to publish or claim.</p>
+              </div>
             </div>
-            <div id="jobsEmpty" class="hidden text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">
-              No jobs yet. Use <strong>Seed &amp; Start</strong> to create one.
+
+            <div class="lg:col-span-2 space-y-4">
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                  <div>
+                    <h3 class="text-lg font-semibold text-slate-100">Available jobs</h3>
+                    <p class="text-sm text-slate-400">Pick a mission to add it to your hangar.</p>
+                  </div>
+                </div>
+                <div id="jobsAvailable" class="space-y-3"></div>
+                <div id="jobsAvailableEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">No jobs available yet. Create one to get started.</div>
+              </div>
+
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                  <div>
+                    <h3 class="text-lg font-semibold text-slate-100">My jobs</h3>
+                    <p class="text-sm text-slate-400">Claimed missions stay private to your account.</p>
+                  </div>
+                </div>
+                <div id="jobsMine" class="space-y-3"></div>
+                <div id="jobsMineEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">Sign in to track claimed jobs.</div>
+              </div>
             </div>
           </div>
         </section>
@@ -227,12 +288,21 @@
     const flightIdEl = document.getElementById('flightId');
     const recentTable = document.getElementById('recentTable');
     const chartMeta = document.getElementById('chartMeta');
-    const jobsTable = document.getElementById('jobsTable');
-    const jobsTableWrap = document.getElementById('jobsTableWrap');
-    const jobsEmpty = document.getElementById('jobsEmpty');
+    const jobsAvailable = document.getElementById('jobsAvailable');
+    const jobsAvailableEmpty = document.getElementById('jobsAvailableEmpty');
+    const jobsMine = document.getElementById('jobsMine');
+    const jobsMineEmpty = document.getElementById('jobsMineEmpty');
     const jobsMeta = document.getElementById('jobsMeta');
+    const btnJobsGenerate = document.getElementById('btnJobsGenerate');
     const btnJobsRefresh = document.getElementById('btnJobsRefresh');
-    const defaultJobsEmpty = jobsEmpty ? jobsEmpty.innerHTML : '';
+    const formCreateJob = document.getElementById('formCreateJob');
+    const jobTitle = document.getElementById('jobTitle');
+    const jobPayload = document.getElementById('jobPayload');
+    const jobWeight = document.getElementById('jobWeight');
+    const jobDeparture = document.getElementById('jobDeparture');
+    const jobArrival = document.getElementById('jobArrival');
+    const jobDeadline = document.getElementById('jobDeadline');
+    const jobNotes = document.getElementById('jobNotes');
     const pages = document.querySelectorAll('[data-page]');
     const navLinks = document.querySelectorAll('[data-nav]');
     const accountButton = document.getElementById('btnAccount');
@@ -257,6 +327,29 @@
     const authSubtitle = document.getElementById('authSubtitle');
 
     let jobsLoaded = false;
+
+    function setJobDeadlineDefault() {
+      if (!jobDeadline) {
+        return;
+      }
+      const baseline = new Date(Date.now() + 2 * 60 * 60 * 1000);
+      const tzOffset = baseline.getTimezoneOffset() * 60000;
+      const local = new Date(baseline.getTime() - tzOffset);
+      jobDeadline.value = local.toISOString().slice(0, 16);
+    }
+
+    if (jobDeadline) {
+      setJobDeadlineDefault();
+    }
+
+    [jobDeparture, jobArrival].forEach((input) => {
+      if (!input) {
+        return;
+      }
+      input.addEventListener('blur', () => {
+        input.value = input.value.trim().toUpperCase();
+      });
+    });
     let currentUser = null;
 
     function setBadge(el, text, cls) {
@@ -517,45 +610,30 @@
     });
 
     async function loadJobs(updateStatus = true) {
-      if (!jobsTable || !jobsEmpty) {
+      if (!jobsAvailable || !jobsAvailableEmpty || !jobsMine || !jobsMineEmpty) {
         return;
       }
 
-      if (!currentUser || !currentUser.email) {
-        jobsLoaded = false;
-        jobsTable.innerHTML = '';
-        if (jobsTableWrap) {
-          jobsTableWrap.classList.add('hidden');
-        }
-        jobsEmpty.classList.remove('hidden');
-        jobsEmpty.innerHTML = 'Sign in to view your jobs.';
-        if (jobsMeta) {
-          jobsMeta.textContent = 'Sign in required';
-        }
-        if (kpiJobs) {
-          kpiJobs.textContent = '0';
-        }
-        if (updateStatus) {
-          statusEl.textContent = 'Sign in to view your jobs.';
-        }
-        return;
-      }
+      const signedIn = Boolean(currentUser && currentUser.email);
 
       if (jobsMeta) {
         jobsMeta.textContent = 'Loading jobs…';
       }
 
       try {
-        const email = currentUser.email.toLowerCase();
-        const res = await apiFetch(`/jobs?email=${encodeURIComponent(email)}`);
-        if (!currentUser || currentUser.email.toLowerCase() !== email) {
-          return;
-        }
-        const jobs = Array.isArray(res.jobs) ? res.jobs : [];
-        renderJobs(jobs);
+        const email = signedIn ? currentUser.email.toLowerCase() : null;
+        const path = email ? `/jobs?email=${encodeURIComponent(email)}` : '/jobs';
+        const res = await apiFetch(path);
+        const available = Array.isArray(res.available) ? res.available : Array.isArray(res.jobs) ? res.jobs : [];
+        const mine = signedIn ? (Array.isArray(res.mine) ? res.mine : []) : [];
+        renderJobs(available, mine);
         jobsLoaded = true;
         if (updateStatus) {
-          statusEl.textContent = `Loaded ${jobs.length} job${jobs.length === 1 ? '' : 's'}.`;
+          const parts = [`${available.length} available`];
+          if (signedIn) {
+            parts.push(`${mine.length} mine`);
+          }
+          statusEl.textContent = `Jobs refreshed (${parts.join(' • ')}).`;
         }
       } catch (err) {
         console.error(err);
@@ -563,62 +641,295 @@
         if (jobsMeta) {
           jobsMeta.textContent = 'Jobs unavailable';
         }
+        if (jobsAvailable) {
+          jobsAvailable.innerHTML = '';
+        }
+        if (jobsMine) {
+          jobsMine.innerHTML = '';
+        }
+        if (jobsAvailableEmpty) {
+          jobsAvailableEmpty.textContent = 'Jobs unavailable.';
+          jobsAvailableEmpty.classList.remove('hidden');
+        }
+        if (jobsMineEmpty) {
+          jobsMineEmpty.textContent = signedIn ? 'Jobs unavailable.' : 'Sign in to track claimed jobs.';
+          jobsMineEmpty.classList.remove('hidden');
+        }
         if (kpiJobs) {
-          kpiJobs.textContent = '0';
+          kpiJobs.textContent = signedIn ? '0' : '0';
         }
-        if (jobsTableWrap) {
-          jobsTableWrap.classList.add('hidden');
-        }
-        jobsEmpty.classList.remove('hidden');
-        jobsEmpty.innerHTML = 'Jobs unavailable.';
         if (updateStatus) {
-          statusEl.textContent = 'Unable to load jobs.';
+          statusEl.textContent = err instanceof Error ? err.message : 'Unable to load jobs.';
         }
       }
     }
 
-    function renderJobs(jobs) {
-      jobsTable.innerHTML = '';
-      const hasJobs = Array.isArray(jobs) && jobs.length > 0;
-      if (jobsTableWrap) {
-        jobsTableWrap.classList.toggle('hidden', !hasJobs);
+    function renderJobs(availableJobs, myJobs) {
+      const signedIn = Boolean(currentUser && currentUser.email);
+      renderJobCollection(jobsAvailable, jobsAvailableEmpty, availableJobs, { allowClaim: true, signedIn, mineList: false });
+      renderJobCollection(jobsMine, jobsMineEmpty, signedIn ? myJobs : [], { allowClaim: false, signedIn, mineList: true });
+
+      if (jobsMeta) {
+        const stamp = new Date().toLocaleTimeString();
+        const parts = [`${availableJobs.length} available`];
+        if (signedIn) {
+          parts.push(`${myJobs.length} mine`);
+        }
+        jobsMeta.textContent = `${parts.join(' • ')} • updated ${stamp}`;
       }
-      jobsEmpty.classList.toggle('hidden', hasJobs);
-      if (!hasJobs) {
-        const signedIn = currentUser && currentUser.email;
-        const safeEmail = signedIn ? escapeHtml(currentUser.email) : '';
-        const message = signedIn
-          ? `No jobs yet for <strong>${safeEmail}</strong>. Use <strong>Seed &amp; Start</strong> to create one.`
-          : 'Sign in to view your jobs.';
-        jobsEmpty.innerHTML = message;
-        if (jobsMeta) {
-          jobsMeta.textContent = signedIn ? `No jobs yet for ${currentUser.email}` : 'Sign in required';
-        }
-        if (kpiJobs) {
-          kpiJobs.textContent = '0';
-        }
+
+      if (kpiJobs) {
+        kpiJobs.textContent = signedIn ? String(myJobs.length) : '0';
+      }
+    }
+
+    function renderJobCollection(container, emptyEl, jobs, { allowClaim, signedIn, mineList }) {
+      if (!container || !emptyEl) {
         return;
       }
 
-      jobsEmpty.innerHTML = defaultJobsEmpty;
+      container.innerHTML = '';
+      const hasJobs = Array.isArray(jobs) && jobs.length > 0;
 
-      const stamp = new Date().toLocaleTimeString();
-      if (jobsMeta) {
-        const ownerLabel = currentUser && currentUser.email ? ` • ${currentUser.email}` : '';
-        jobsMeta.textContent = `${jobs.length} job${jobs.length === 1 ? '' : 's'}${ownerLabel} • updated ${stamp}`;
-      }
-      if (kpiJobs) {
-        kpiJobs.textContent = String(jobs.length);
+      if (!hasJobs) {
+        if (mineList) {
+          emptyEl.textContent = signedIn ? 'You have not claimed any jobs yet.' : 'Sign in to track claimed jobs.';
+        } else {
+          emptyEl.textContent = 'No jobs available yet. Create one or ask SimuNet to auto-generate missions.';
+        }
+        emptyEl.classList.remove('hidden');
+        return;
       }
 
+      emptyEl.classList.add('hidden');
       jobs.forEach((job) => {
-        const legs = Array.isArray(job.legs) ? job.legs : [];
-        const legsText = legs.length ? legs.map((leg) => `#${leg.seq} ${leg.mode}`).join(', ') : '—';
-        const tr = document.createElement('tr');
-        tr.innerHTML = '<td class="py-2 font-medium text-slate-200">' + job.job_id + '</td>' +
-          '<td class="py-2 text-slate-300">' + legsText + '</td>' +
-          '<td class="py-2">' + fmtDate(job.created_at) + '</td>';
-        jobsTable.appendChild(tr);
+        container.appendChild(buildJobCard(job, { allowClaim, signedIn }));
+      });
+    }
+
+    function buildJobCard(job, { allowClaim, signedIn }) {
+      const card = document.createElement('div');
+      card.className = 'border border-white/10 rounded-xl p-4 bg-[#0b1020]/60';
+
+      const title = escapeHtml(job.title || job.job_id || 'Flight job');
+      const platform = escapeHtml(job.platform || 'Microsoft Flight Simulator');
+      const payloadLabel = escapeHtml(job.payload || '—');
+      const departure = escapeHtml((job.departure_airport || '—').toString());
+      const arrival = escapeHtml((job.arrival_airport || '—').toString());
+      const statusLabel = escapeHtml(job.status || (job.assigned_to ? 'claimed' : 'open'));
+      const createdByRaw = job.created_by ? job.created_by.toString() : '';
+      const createdByLabel = createdByRaw && createdByRaw.toLowerCase() === 'ops@simunet.local' ? 'SimuNet Ops' : (createdByRaw || 'SimuNet Ops');
+      const createdBy = escapeHtml(createdByLabel);
+      const assignedTo = job.assigned_to ? escapeHtml(job.assigned_to) : '';
+      const deadlineText = job.deadline ? fmtDate(job.deadline) : 'No deadline';
+      const createdAtText = job.created_at ? fmtDate(job.created_at) : '—';
+      const notes = job.notes ? escapeHtml(job.notes).replace(/\n/g, '<br>') : '';
+      let weightText = '—';
+      if (typeof job.weight_lbs === 'number') {
+        weightText = `${Number(job.weight_lbs).toLocaleString(undefined, { maximumFractionDigits: 1 })} lbs`;
+      }
+
+      card.innerHTML = `
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="font-semibold text-slate-100">${title}</div>
+            <div class="text-xs uppercase tracking-wide text-indigo-300/70 mt-1">${platform}</div>
+          </div>
+          <div class="text-xs uppercase tracking-wide text-slate-400">${statusLabel}</div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-slate-300 mt-4">
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wide">Route</div>
+            <div class="font-medium text-slate-100">${departure} → ${arrival}</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wide">Deadline</div>
+            <div class="font-medium text-slate-100">${deadlineText}</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wide">Payload</div>
+            <div class="font-medium text-slate-100">${payloadLabel}</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wide">Weight</div>
+            <div class="font-medium text-slate-100">${weightText}</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wide">Created</div>
+            <div class="font-medium text-slate-100">${escapeHtml(createdAtText)}</div>
+          </div>
+        </div>
+      `;
+
+      if (notes) {
+        const notesEl = document.createElement('p');
+        notesEl.className = 'mt-3 text-xs text-slate-400 leading-relaxed';
+        notesEl.innerHTML = `<span class="uppercase tracking-wide text-slate-500 mr-2">Notes</span>${notes}`;
+        card.appendChild(notesEl);
+      }
+
+      const footer = document.createElement('div');
+      footer.className = 'mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 flex-wrap text-xs text-slate-400';
+      const createdEl = document.createElement('div');
+      createdEl.innerHTML = `Created by <span class="text-slate-200">${createdBy}</span>`;
+      footer.appendChild(createdEl);
+
+      if (assignedTo) {
+        const assignedEl = document.createElement('div');
+        assignedEl.innerHTML = `Assigned to <span class="text-slate-200">${assignedTo}</span>`;
+        footer.appendChild(assignedEl);
+      }
+
+      if (allowClaim) {
+        const claimBtn = document.createElement('button');
+        claimBtn.type = 'button';
+        if (signedIn) {
+          claimBtn.className = 'sm:ml-auto px-3 py-2 rounded-lg grad text-sm font-medium';
+          claimBtn.textContent = 'Claim job';
+          claimBtn.addEventListener('click', () => handleClaim(job.job_id));
+        } else {
+          claimBtn.className = 'sm:ml-auto px-3 py-2 rounded-lg bg-white/10 text-sm text-slate-300 cursor-not-allowed';
+          claimBtn.textContent = 'Sign in to claim';
+          claimBtn.disabled = true;
+        }
+        footer.appendChild(claimBtn);
+      }
+
+      card.appendChild(footer);
+      return card;
+    }
+
+    async function handleClaim(jobId) {
+      if (!jobId) {
+        return;
+      }
+      if (!currentUser || !currentUser.email) {
+        statusEl.textContent = 'Sign in to claim jobs.';
+        toggleAuthSheet(true, 'login');
+        return;
+      }
+      statusEl.textContent = 'Claiming job...';
+      try {
+        await apiFetch(`/jobs/${encodeURIComponent(jobId)}/claim`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: currentUser.email.toLowerCase() }),
+        });
+        await loadJobs(true);
+        statusEl.textContent = 'Job claimed.';
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err instanceof Error ? err.message : 'Unable to claim job.';
+      }
+    }
+
+    if (formCreateJob) {
+      formCreateJob.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!currentUser || !currentUser.email) {
+          statusEl.textContent = 'Sign in to publish jobs.';
+          toggleAuthSheet(true, 'login');
+          return;
+        }
+
+        const titleValue = jobTitle ? jobTitle.value.trim() : '';
+        const payloadValue = jobPayload ? jobPayload.value.trim() : '';
+        const departureValue = jobDeparture ? jobDeparture.value.trim().toUpperCase() : '';
+        const arrivalValue = jobArrival ? jobArrival.value.trim().toUpperCase() : '';
+        const deadlineValue = jobDeadline ? jobDeadline.value : '';
+        const notesValue = jobNotes ? jobNotes.value.trim() : '';
+
+        if (!titleValue || !payloadValue || !departureValue || !arrivalValue || !deadlineValue) {
+          statusEl.textContent = 'All required fields must be completed.';
+          return;
+        }
+
+        const deadlineDate = new Date(deadlineValue);
+        if (Number.isNaN(deadlineDate.getTime())) {
+          statusEl.textContent = 'Deadline must be a valid date/time.';
+          return;
+        }
+
+        let weightValue = null;
+        if (jobWeight && jobWeight.value.trim()) {
+          const parsed = Number(jobWeight.value);
+          if (!Number.isFinite(parsed) || parsed < 0) {
+            statusEl.textContent = 'Weight must be a positive number.';
+            return;
+          }
+          weightValue = parsed;
+        }
+
+        const payloadBody = {
+          title: titleValue,
+          platform: 'Microsoft Flight Simulator',
+          payload: payloadValue,
+          weight_lbs: weightValue,
+          departure_airport: departureValue,
+          arrival_airport: arrivalValue,
+          deadline: deadlineDate.toISOString(),
+          notes: notesValue || null,
+          created_by: currentUser.email.toLowerCase(),
+          legs: [{ seq: 1, mode: 'flight' }],
+        };
+
+        statusEl.textContent = 'Publishing job...';
+        try {
+          await apiFetch('/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payloadBody),
+          });
+          formCreateJob.reset();
+          if (jobDeparture) {
+            jobDeparture.value = departureValue;
+          }
+          if (jobArrival) {
+            jobArrival.value = arrivalValue;
+          }
+          if (jobWeight) {
+            jobWeight.value = weightValue !== null ? String(weightValue) : '';
+          }
+          setJobDeadlineDefault();
+          await loadJobs(true);
+          statusEl.textContent = 'Job created.';
+        } catch (err) {
+          console.error(err);
+          statusEl.textContent = err instanceof Error ? err.message : 'Unable to create job.';
+        }
+      });
+    }
+
+    if (btnJobsGenerate) {
+      btnJobsGenerate.addEventListener('click', async () => {
+        if (btnJobsGenerate.disabled) {
+          return;
+        }
+        btnJobsGenerate.disabled = true;
+        btnJobsGenerate.classList.add('opacity-60', 'cursor-not-allowed');
+        statusEl.textContent = 'Requesting SimuNet missions…';
+        try {
+          const res = await apiFetch('/jobs/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ count: 3 }),
+          });
+          await loadJobs(false);
+          const created = res && typeof res === 'object' && res !== null
+            ? (Array.isArray(res.jobs) ? res.jobs.length : (typeof res.count === 'number' ? res.count : 0))
+            : 0;
+          if (created > 0) {
+            statusEl.textContent = `SimuNet generated ${created} new job${created === 1 ? '' : 's'}.`;
+          } else {
+            statusEl.textContent = 'SimuNet had no new missions ready.';
+          }
+        } catch (err) {
+          console.error(err);
+          statusEl.textContent = err instanceof Error ? err.message : 'Unable to request SimuNet missions.';
+        } finally {
+          btnJobsGenerate.disabled = false;
+          btnJobsGenerate.classList.remove('opacity-60', 'cursor-not-allowed');
+        }
       });
     }
 
@@ -643,7 +954,7 @@
         if (seeded && seeded.job_id) {
           await loadJobs(false);
         }
-        const started = await apiFetch(`/flights?assignment_id=${encodeURIComponent(seeded.job_id)}&seq=1&mode=truck`, { method: 'POST' });
+        const started = await apiFetch(`/flights?assignment_id=${encodeURIComponent(seeded.job_id)}&seq=1&mode=flight`, { method: 'POST' });
         flightIdEl.value = started.flight_id;
         saveRecent(started.flight_id, 0);
         statusEl.textContent = 'Created flight ' + started.flight_id;
