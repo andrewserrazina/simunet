@@ -11,8 +11,9 @@ import secrets
 import types
 import importlib
 import importlib.util
+import random
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -77,6 +78,63 @@ USE_DB = bool(DB_AVAILABLE and getattr(db_module, "SessionLocal", None))
 
 
 STATE_PATH = Path(os.path.join(os.path.dirname(__file__), "data", "state.json"))
+
+SIMUNET_CREATOR_EMAIL = "ops@simunet.local"
+
+MSFS_MISSIONS = [
+    {
+        "title": "Cascade Relief Hop",
+        "payload": "Medical relief packages",
+        "weight_lbs": (5200, 6800),
+        "departure": "KSEA",
+        "arrival": "KPDX",
+        "notes": "Coordinate with Portland ground crew for hand-off on arrival.",
+    },
+    {
+        "title": "Northern Lights Cargo",
+        "payload": "Navigation beacons",
+        "weight_lbs": (3800, 5400),
+        "departure": "PAFA",
+        "arrival": "PANC",
+        "notes": "Watch for icing along the Alaska Range and maintain radio contact with Anchorage Center.",
+    },
+    {
+        "title": "Island Supply Shuttle",
+        "payload": "Island hospital supplies",
+        "weight_lbs": (2600, 4200),
+        "departure": "PHNL",
+        "arrival": "PHOG",
+        "notes": "Plan for strong trade winds on approach into Maui; deliver by dusk for coastal clinics.",
+    },
+    {
+        "title": "Rocky Mountain Survey",
+        "payload": "Aerial mapping equipment",
+        "weight_lbs": (3100, 4700),
+        "departure": "KDEN",
+        "arrival": "KSLC",
+        "notes": "Collect terrain imagery en route over the Uintas before descending into Salt Lake City.",
+    },
+    {
+        "title": "Arctic Research Drop",
+        "payload": "Scientific instruments",
+        "weight_lbs": (4500, 6200),
+        "departure": "BGTL",
+        "arrival": "BGSF",
+        "notes": "Limited daylight window — prioritize timely departure and monitor runway conditions in Greenland.",
+    },
+    {
+        "title": "Coastal Weather Run",
+        "payload": "Automated weather stations",
+        "weight_lbs": (3300, 5100),
+        "departure": "CYVR",
+        "arrival": "CYYJ",
+        "notes": "Distribute payload to Victoria field team; low ceilings expected over Strait of Georgia.",
+    },
+]
+
+MSFS_DEFAULT_LEGS = [
+    {"seq": 1, "mode": "flight"},
+]
 
 
 def _isoformat(ts: datetime | str | None) -> str | None:
@@ -182,31 +240,200 @@ def _serialize_point(point: Any) -> dict[str, Any]:
 
 
 def _serialize_job(job: Any) -> dict[str, Any]:
-    if isinstance(job, dict):
-        legs = job.get("legs", [])
-        return {
-            "job_id": job.get("job_id"),
-            "legs": legs,
-            "created_at": job.get("created_at"),
-            "created_by": job.get("created_by"),
-        }
+    def _status(assignee: str | None) -> str:
+        return "claimed" if assignee else "open"
 
-    legs = []
+    if isinstance(job, dict):
+        legs = job.get("legs") or []
+        assigned_to = job.get("assigned_to")
+        if assigned_to:
+            assigned_to = _normalize_email(str(assigned_to))
+        created_by = job.get("created_by")
+        if created_by:
+            created_by = _normalize_email(str(created_by))
+
+        data = {
+            "job_id": job.get("job_id"),
+            "title": job.get("title"),
+            "platform": job.get("platform"),
+            "payload": job.get("payload"),
+            "weight_lbs": job.get("weight_lbs"),
+            "departure_airport": job.get("departure_airport"),
+            "arrival_airport": job.get("arrival_airport"),
+            "deadline": job.get("deadline"),
+            "notes": job.get("notes"),
+            "created_at": job.get("created_at"),
+            "created_by": created_by,
+            "assigned_to": assigned_to,
+            "legs": legs,
+        }
+        data["status"] = _status(assigned_to)
+        return data
+
+    legs: list[dict[str, Any]] = []
     for leg in getattr(job, "legs", []) or []:
         legs.append({"seq": getattr(leg, "seq", 0), "mode": getattr(leg, "mode", "")})
 
-    created_by = None
+    detail = getattr(job, "detail", None)
+    created_by = getattr(detail, "created_by", None) if detail is not None else getattr(job, "created_by", None)
+    if created_by:
+        created_by = _normalize_email(str(created_by))
+
+    assigned_to = None
+    if detail is not None:
+        assigned_to = getattr(detail, "assigned_to", None)
     owner = getattr(job, "owner", None)
-    if owner is not None:
-        created_by = getattr(owner, "email", None)
-    elif hasattr(job, "created_by"):
-        created_by = getattr(job, "created_by")
+    if owner is not None and getattr(owner, "email", None):
+        assigned_to = getattr(owner, "email")
+    if assigned_to:
+        assigned_to = _normalize_email(str(assigned_to))
+
+    created_at_source = getattr(detail, "created_at", None) if detail is not None else getattr(job, "created_at", None)
 
     return {
         "job_id": getattr(job, "job_id", None),
-        "legs": legs,
-        "created_at": _isoformat(getattr(job, "created_at", None)),
+        "title": getattr(detail, "title", None) if detail is not None else getattr(job, "title", None),
+        "platform": getattr(detail, "platform", None) if detail is not None else getattr(job, "platform", None),
+        "payload": getattr(detail, "payload", None) if detail is not None else getattr(job, "payload", None),
+        "weight_lbs": getattr(detail, "weight_lbs", None) if detail is not None else getattr(job, "weight_lbs", None),
+        "departure_airport": getattr(detail, "departure_airport", None) if detail is not None else getattr(job, "departure_airport", None),
+        "arrival_airport": getattr(detail, "arrival_airport", None) if detail is not None else getattr(job, "arrival_airport", None),
+        "deadline": _isoformat(getattr(detail, "deadline", None)) if detail is not None else _isoformat(getattr(job, "deadline", None)),
+        "notes": getattr(detail, "notes", None) if detail is not None else getattr(job, "notes", None),
+        "created_at": _isoformat(created_at_source),
         "created_by": created_by,
+        "assigned_to": assigned_to,
+        "status": _status(assigned_to),
+        "legs": legs,
+    }
+
+
+def _persist_job(
+    *,
+    job_id: str,
+    creator_email: str,
+    created_at: datetime,
+    title: str,
+    platform: str,
+    payload_desc: str,
+    weight_lbs: float | None,
+    departure_airport: str,
+    arrival_airport: str,
+    deadline: datetime | None,
+    notes: str | None,
+    legs: list[dict[str, Any]],
+    assigned_to: str | None = None,
+) -> dict[str, Any]:
+    """Persist a job in either the database or JSON fallback store."""
+
+    normalized_creator = _normalize_email(creator_email)
+    normalized_assignee = _normalize_email(assigned_to) if assigned_to else None
+    departure = departure_airport.upper()
+    arrival = arrival_airport.upper()
+    deadline_dt = deadline
+    if isinstance(deadline_dt, datetime) and deadline_dt.tzinfo is not None:
+        deadline_dt = deadline_dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+    if USE_DB:
+        with _session() as session:
+            job = db_module.Job(job_id=job_id)
+            session.add(job)
+
+            detail_model = None
+            if hasattr(db_module, "JobDetail"):
+                detail_model = db_module.JobDetail(
+                    job_id=job_id,
+                    title=title,
+                    platform=platform,
+                    payload=payload_desc,
+                    weight_lbs=weight_lbs,
+                    departure_airport=departure,
+                    arrival_airport=arrival,
+                    deadline=deadline_dt,
+                    notes=notes,
+                    created_by=normalized_creator,
+                    created_at=created_at,
+                    assigned_to=normalized_assignee,
+                )
+                job.detail = detail_model
+                session.add(detail_model)
+
+            if normalized_assignee and hasattr(db_module, "JobOwner"):
+                existing_owner = job.owner
+                if existing_owner is None:
+                    job.owner = db_module.JobOwner(job_id=job_id, email=normalized_assignee)
+                else:
+                    existing_owner.email = normalized_assignee
+
+            for leg in legs or []:
+                leg_model = db_module.Leg(
+                    job=job,
+                    seq=int(leg.get("seq", 1) or 1),
+                    mode=str(leg.get("mode", "flight") or "flight"),
+                )
+                session.add(leg_model)
+
+            session.flush()
+            session.refresh(job)
+            return _serialize_job(job)
+
+    state = _load_state()
+    jobs = state.setdefault("jobs", {})
+    job_entry = {
+        "job_id": job_id,
+        "title": title,
+        "platform": platform,
+        "payload": payload_desc,
+        "weight_lbs": weight_lbs,
+        "departure_airport": departure,
+        "arrival_airport": arrival,
+        "deadline": _isoformat(deadline),
+        "notes": notes,
+        "created_at": _isoformat(created_at),
+        "created_by": normalized_creator,
+        "assigned_to": normalized_assignee,
+        "legs": legs or [],
+    }
+    jobs[job_id] = job_entry
+    _save_state(state)
+    return _serialize_job(job_entry)
+
+
+def _build_simunet_job(now: datetime | None = None) -> dict[str, Any]:
+    """Create a randomized Microsoft Flight Simulator job blueprint."""
+
+    current = now or datetime.utcnow()
+    mission = random.choice(MSFS_MISSIONS)
+
+    weight_spec = mission.get("weight_lbs")
+    weight_value: float | None
+    if isinstance(weight_spec, tuple) and len(weight_spec) == 2:
+        low, high = weight_spec
+        weight_value = round(random.uniform(float(low), float(high)), 1)
+    elif isinstance(weight_spec, (int, float)):
+        weight_value = float(weight_spec)
+    else:
+        weight_value = None
+
+    deadline_offset = random.randint(3, 18)
+    deadline = current + timedelta(hours=deadline_offset)
+
+    base_notes = mission.get("notes") or ""
+    extra_note = "SimuNet Mission Control auto-generated assignment."
+    notes = f"{base_notes}\n\n{extra_note}" if base_notes else extra_note
+
+    legs = [dict(leg) for leg in MSFS_DEFAULT_LEGS]
+
+    return {
+        "title": mission.get("title", "Microsoft Flight Simulator Job"),
+        "platform": "Microsoft Flight Simulator",
+        "payload": mission.get("payload", "Logistics payload"),
+        "weight_lbs": weight_value,
+        "departure_airport": mission.get("departure", "KSEA"),
+        "arrival_airport": mission.get("arrival", "CYVR"),
+        "deadline": deadline,
+        "notes": notes,
+        "legs": legs,
     }
 
 
@@ -241,6 +468,40 @@ class AuthPayload(BaseModel):
 
     email: EmailStr
     password: str = Field(..., min_length=8)
+
+
+class JobLegPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    seq: int = Field(1, ge=1)
+    mode: str = Field("flight", min_length=1, max_length=32)
+
+
+class JobCreatePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(..., min_length=3, max_length=255)
+    platform: str = Field("Microsoft Flight Simulator", min_length=3, max_length=128)
+    payload: str = Field(..., min_length=3, max_length=255)
+    weight_lbs: float | None = Field(default=None, ge=0)
+    departure_airport: str = Field(..., min_length=3, max_length=16)
+    arrival_airport: str = Field(..., min_length=3, max_length=16)
+    deadline: datetime
+    notes: str | None = Field(default=None, max_length=600)
+    created_by: EmailStr
+    legs: list[JobLegPayload] = Field(default_factory=list)
+
+
+class JobAutoPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    count: int = Field(default=1, ge=1, le=10)
+
+
+class JobClaimPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
 
 
 class ReseedPayload(BaseModel):
@@ -327,19 +588,18 @@ def login(payload: AuthPayload) -> dict[str, Any]:
 def reseed(payload: ReseedPayload | None = None) -> dict[str, Any]:
     """Create a demo job/assignment for quickstarts."""
     job_id = uuid.uuid4().hex[:12]
-    created_at = _now_iso()
+    created_at = datetime.utcnow()
     legs = [
-        {"seq": 1, "mode": "truck"},
-        {"seq": 2, "mode": "air"},
+        {"seq": 1, "mode": "flight"},
     ]
 
     owner_email = None
     if payload and payload.email:
         owner_email = _normalize_email(str(payload.email))
 
-    if USE_DB:
-        with _session() as session:
-            if owner_email:
+    if owner_email:
+        if USE_DB:
+            with _session() as session:
                 user = (
                     session.query(db_module.User)
                     .filter_by(email=owner_email)
@@ -347,80 +607,230 @@ def reseed(payload: ReseedPayload | None = None) -> dict[str, Any]:
                 )
                 if user is None:
                     raise HTTPException(status_code=404, detail="User not found")
-            job = db_module.Job(job_id=job_id)
-            if owner_email and hasattr(db_module, "JobOwner"):
-                job.owner = db_module.JobOwner(job_id=job_id, email=owner_email)
-            session.add(job)
-            for leg in legs:
-                session.add(
-                    db_module.Leg(
-                        job_id=job_id,
-                        seq=leg["seq"],
-                        mode=leg["mode"],
-                    )
-                )
-            session.flush()
-    else:
-        state = _load_state()
-        users = state.setdefault("users", {})
-        if owner_email:
+        else:
+            state = _load_state()
+            users = state.setdefault("users", {})
             if owner_email not in users:
                 raise HTTPException(status_code=404, detail="User not found")
-        job_entry = {
-            "job_id": job_id,
-            "legs": legs,
-            "created_at": created_at,
-        }
-        if owner_email:
-            job_entry["created_by"] = owner_email
-        state.setdefault("jobs", {})[job_id] = job_entry
-        _save_state(state)
+
+    job_data = _persist_job(
+        job_id=job_id,
+        creator_email=owner_email or SIMUNET_CREATOR_EMAIL,
+        created_at=created_at,
+        title="MSFS Relief Flight",
+        platform="Microsoft Flight Simulator",
+        payload_desc="Emergency medical supplies",
+        weight_lbs=7200.0,
+        departure_airport="KSEA",
+        arrival_airport="CYVR",
+        deadline=created_at + timedelta(hours=6),
+        notes="Deliver the payload before the deadline to keep regional hospitals stocked.",
+        legs=legs,
+        assigned_to=owner_email,
+    )
 
     return {
         "ok": True,
-        "job_id": job_id,
-        "legs": legs,
-        "created_at": created_at,
-        "created_by": owner_email,
+        "job_id": job_data.get("job_id"),
+        "job": job_data,
     }
+
+
+@app.post("/jobs", status_code=status.HTTP_201_CREATED)
+def create_job(payload: JobCreatePayload) -> dict[str, Any]:
+    """Create a new Microsoft Flight Simulator job."""
+
+    creator_email = _normalize_email(str(payload.created_by))
+
+    if USE_DB:
+        with _session() as session:
+            user = session.query(db_module.User).filter_by(email=creator_email).one_or_none()
+            if user is None:
+                raise HTTPException(status_code=404, detail="User not found")
+    else:
+        state = _load_state()
+        users = state.setdefault("users", {})
+        if creator_email not in users:
+            raise HTTPException(status_code=404, detail="User not found")
+
+    legs = [
+        {"seq": leg.seq, "mode": leg.mode}
+        for leg in (payload.legs or [])
+    ]
+    if not legs:
+        legs = [{"seq": 1, "mode": "flight"}]
+
+    job_id = uuid.uuid4().hex[:12]
+    created_at = datetime.utcnow()
+
+    job_data = _persist_job(
+        job_id=job_id,
+        creator_email=creator_email,
+        created_at=created_at,
+        title=payload.title.strip(),
+        platform=payload.platform.strip(),
+        payload_desc=payload.payload.strip(),
+        weight_lbs=payload.weight_lbs,
+        departure_airport=payload.departure_airport.strip(),
+        arrival_airport=payload.arrival_airport.strip(),
+        deadline=payload.deadline,
+        notes=payload.notes.strip() if payload.notes else None,
+        legs=legs,
+    )
+
+    return {"ok": True, "job": job_data}
+
+
+@app.post("/jobs/generate", status_code=status.HTTP_201_CREATED)
+def auto_generate_jobs(payload: JobAutoPayload | None = None) -> dict[str, Any]:
+    """Create SimuNet-authored jobs without manual input."""
+
+    count = 1
+    if payload is not None:
+        count = int(payload.count)
+
+    created_jobs: list[dict[str, Any]] = []
+    for _ in range(count):
+        job_id = uuid.uuid4().hex[:12]
+        created_at = datetime.utcnow()
+        blueprint = _build_simunet_job(created_at)
+        job = _persist_job(
+            job_id=job_id,
+            creator_email=SIMUNET_CREATOR_EMAIL,
+            created_at=created_at,
+            title=blueprint["title"],
+            platform=blueprint["platform"],
+            payload_desc=blueprint["payload"],
+            weight_lbs=blueprint["weight_lbs"],
+            departure_airport=blueprint["departure_airport"],
+            arrival_airport=blueprint["arrival_airport"],
+            deadline=blueprint["deadline"],
+            notes=blueprint["notes"],
+            legs=blueprint["legs"],
+            assigned_to=None,
+        )
+        created_jobs.append(job)
+
+    return {"ok": True, "jobs": created_jobs, "count": len(created_jobs)}
+
+
+@app.post("/jobs/{job_id}/claim")
+def claim_job(job_id: str, payload: JobClaimPayload) -> dict[str, Any]:
+    """Assign a job to a specific user."""
+
+    claimer = _normalize_email(str(payload.email))
+
+    if USE_DB:
+        with _session() as session:
+            user = session.query(db_module.User).filter_by(email=claimer).one_or_none()
+            if user is None:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            job = session.query(db_module.Job).filter_by(job_id=job_id).one_or_none()
+            if job is None:
+                raise HTTPException(status_code=404, detail="Job not found")
+
+            existing_assignee = None
+            owner_cls = getattr(db_module, "JobOwner", None)
+            if owner_cls is not None and job.owner is not None:
+                existing_assignee = _normalize_email(str(job.owner.email))
+
+            detail_model = getattr(job, "detail", None)
+            if existing_assignee is None and detail_model is not None and getattr(detail_model, "assigned_to", None):
+                existing_assignee = _normalize_email(str(detail_model.assigned_to))
+
+            if existing_assignee and existing_assignee != claimer:
+                raise HTTPException(status_code=409, detail="Job already claimed")
+
+            if owner_cls is not None:
+                if job.owner is None:
+                    job.owner = owner_cls(job_id=job_id, email=claimer)
+                else:
+                    job.owner.email = claimer
+
+            if detail_model is not None:
+                detail_model.assigned_to = claimer
+            elif hasattr(db_module, "JobDetail"):
+                detail_cls = getattr(db_module, "JobDetail")
+                existing_detail = session.query(detail_cls).filter_by(job_id=job_id).one_or_none()
+                if existing_detail is not None:
+                    existing_detail.assigned_to = claimer
+
+            session.flush()
+            session.refresh(job)
+            return {"ok": True, "job": _serialize_job(job)}
+
+    state = _load_state()
+    users = state.setdefault("users", {})
+    if claimer not in users:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    jobs = state.setdefault("jobs", {})
+    job_entry = jobs.get(job_id)
+    if not job_entry:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    existing_assignee = job_entry.get("assigned_to")
+    if existing_assignee:
+        existing_assignee_norm = _normalize_email(str(existing_assignee))
+        if existing_assignee_norm and existing_assignee_norm != claimer:
+            raise HTTPException(status_code=409, detail="Job already claimed")
+
+    job_entry["assigned_to"] = claimer
+    jobs[job_id] = job_entry
+    _save_state(state)
+    return {"ok": True, "job": _serialize_job(job_entry)}
 
 
 @app.get("/jobs")
 def list_jobs(email: EmailStr | None = Query(default=None)) -> dict[str, Any]:
-    """Return known jobs and their legs."""
+    """Return available jobs and the caller's claimed jobs."""
 
     filter_email = _normalize_email(str(email)) if email else None
+    available: list[dict[str, Any]] = []
+    mine: list[dict[str, Any]] = []
+
+    def _sort_key(item: dict[str, Any]) -> tuple[str, str]:
+        deadline = item.get("deadline") or ""
+        created = item.get("created_at") or ""
+        return (deadline or "", created or "")
 
     if USE_DB:
         with _session() as session:
-            owner_model = getattr(db_module, "JobOwner", None)
-            if filter_email and owner_model is None:
-                return {"jobs": []}
-
             query = session.query(db_module.Job)
             if joinedload is not None:
                 query = query.options(joinedload(db_module.Job.legs))
-                if owner_model is not None:
+                if hasattr(db_module, "JobOwner"):
                     query = query.options(joinedload(db_module.Job.owner))
-
-            if filter_email and owner_model is not None:
-                query = query.join(owner_model).filter(owner_model.email == filter_email)
+                if hasattr(db_module, "JobDetail"):
+                    query = query.options(joinedload(db_module.Job.detail))
 
             jobs = query.order_by(db_module.Job.job_id.desc()).all()
-            serialized = [_serialize_job(job) for job in jobs]
+            for job in jobs:
+                serialized = _serialize_job(job)
+                assignee = serialized.get("assigned_to")
+                if assignee:
+                    if filter_email and assignee == filter_email:
+                        mine.append(serialized)
+                    continue
+                available.append(serialized)
     else:
         state = _load_state()
         stored = state.get("jobs", {})
-        serialized = []
         for job in stored.values():
-            if filter_email:
-                created_by = job.get("created_by")
-                if not created_by or _normalize_email(str(created_by)) != filter_email:
-                    continue
-            serialized.append(_serialize_job(job))
-        serialized.sort(key=lambda item: item.get("created_at") or "", reverse=True)
+            serialized = _serialize_job(job)
+            assignee = serialized.get("assigned_to")
+            if assignee:
+                if filter_email and assignee == filter_email:
+                    mine.append(serialized)
+                continue
+            available.append(serialized)
 
-    return {"jobs": serialized}
+    available.sort(key=_sort_key)
+    mine.sort(key=_sort_key)
+
+    response = {"available": available, "mine": mine if filter_email else []}
+    return response
 
 
 @app.post("/flights", status_code=status.HTTP_201_CREATED)
