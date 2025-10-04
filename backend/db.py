@@ -17,7 +17,13 @@ from sqlalchemy import (
     Boolean,
     inspect,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    mapped_column,
+    relationship,
+    sessionmaker,
+)
 
 def _normalize_url(url: str) -> str:
     """
@@ -76,6 +82,8 @@ class Leg(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     seq: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     mode: Mapped[str] = mapped_column(String(16), nullable=False, default="truck")
+    origin_airport: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    destination_airport: Mapped[str | None] = mapped_column(String(16), nullable=True)
     job_id: Mapped[str] = mapped_column(String(64), ForeignKey("jobs.job_id"), index=True)
     job: Mapped["Job"] = relationship(back_populates="legs")
 
@@ -102,8 +110,12 @@ class JobDetail(Base):
     created_by: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True, default=datetime.utcnow)
     assigned_to: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    team_id: Mapped[Optional[str]] = mapped_column(String(64), ForeignKey("teams.id"), nullable=True)
+    airline_id: Mapped[Optional[str]] = mapped_column(String(64), ForeignKey("virtual_airlines.id"), nullable=True)
 
     job: Mapped["Job"] = relationship(back_populates="detail", uselist=False)
+    team: Mapped[Optional["Team"]] = relationship(back_populates="jobs")
+    airline: Mapped[Optional["VirtualAirline"]] = relationship(back_populates="jobs")
 
 
 class Flight(Base):
@@ -123,6 +135,46 @@ class Telemetry(Base):
     alt: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     ts: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True)
     __table_args__ = (UniqueConstraint("flight_id", "k", name="uq_flight_k"),)
+
+
+class VirtualAirline(Base):
+    __tablename__ = "virtual_airlines"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True, default=datetime.utcnow)
+
+    teams: Mapped[list["Team"]] = relationship(back_populates="airline", cascade="all, delete-orphan")
+    jobs: Mapped[list["JobDetail"]] = relationship(back_populates="airline")
+
+
+class Team(Base):
+    __tablename__ = "teams"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True, default=datetime.utcnow)
+    airline_id: Mapped[Optional[str]] = mapped_column(String(64), ForeignKey("virtual_airlines.id"), nullable=True)
+
+    airline: Mapped[Optional[VirtualAirline]] = relationship(back_populates="teams")
+    members: Mapped[list["TeamMembership"]] = relationship(back_populates="team", cascade="all, delete-orphan")
+    jobs: Mapped[list[JobDetail]] = relationship(back_populates="team")
+
+
+class TeamMembership(Base):
+    __tablename__ = "team_memberships"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    team_id: Mapped[str] = mapped_column(String(64), ForeignKey("teams.id"), index=True)
+    email: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    role: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    joined_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True, default=datetime.utcnow)
+
+    team: Mapped[Team] = relationship(back_populates="members")
 
 # ---------- INIT ----------
 def _init_engine():
@@ -184,3 +236,38 @@ def _apply_schema_patches() -> None:
     with _engine.begin() as conn:
         conn.execute(text(ddl))
         conn.execute(text(update_admin), {"email": SIMUNET_CREATOR_EMAIL})
+
+    # Ensure new columns exist for collaborative missions without requiring a full migration tool.
+    def _ensure_column(table: str, column: str, ddl_sql: str) -> None:
+        try:
+            existing = {col["name"] for col in inspector.get_columns(table)}
+        except Exception:
+            return
+        if column in existing:
+            return
+        with _engine.begin() as conn:
+            conn.execute(text(ddl_sql))
+
+    if "job_details" in tables:
+        _ensure_column(
+            "job_details",
+            "team_id",
+            "ALTER TABLE job_details ADD COLUMN team_id VARCHAR(64) NULL",
+        )
+        _ensure_column(
+            "job_details",
+            "airline_id",
+            "ALTER TABLE job_details ADD COLUMN airline_id VARCHAR(64) NULL",
+        )
+
+    if "legs" in tables:
+        _ensure_column(
+            "legs",
+            "origin_airport",
+            "ALTER TABLE legs ADD COLUMN origin_airport VARCHAR(16) NULL",
+        )
+        _ensure_column(
+            "legs",
+            "destination_airport",
+            "ALTER TABLE legs ADD COLUMN destination_airport VARCHAR(16) NULL",
+        )
