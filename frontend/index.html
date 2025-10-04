@@ -6,9 +6,6 @@
   <title>SimuNet • Dashboard</title>
   <link rel="icon" href="/favicon.ico">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     :root{ --glass: 255,255,255,0.06; }
@@ -24,7 +21,9 @@
         <div><div class="font-bold text-lg">SimuNet</div><div class="text-xs text-slate-400">Drive • Fly • Deliver</div></div>
       </div>
       <nav class="mt-4 flex-1 flex flex-col">
-        <a class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 text-white" href="#"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
+        <a data-nav="dashboard" class="nav-link flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 text-white" href="#dashboard"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
+        <a data-nav="jobs" class="nav-link flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-white/10" href="#jobs"><i data-lucide="clipboard-list" class="w-4 h-4"></i> Jobs</a>
+        <a data-nav="admin" id="navAdmin" class="nav-link flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-white/10 hidden" href="#admin"><i data-lucide="shield-check" class="w-4 h-4"></i> Admin</a>
         <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-white/10" href="#"><i data-lucide="plane" class="w-4 h-4"></i> Flights</a>
         <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-white/10" href="#"><i data-lucide="radio" class="w-4 h-4"></i> Connectors</a>
         <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-white/10" href="#"><i data-lucide="book-open" class="w-4 h-4"></i> Docs</a>
@@ -34,87 +33,423 @@
 
     <div class="flex flex-col">
       <header class="flex items-center gap-3 p-3 md:p-4 border-b border-white/10 bg-[#0f1430]/90 sticky top-0 z-10">
-        <div class="hidden md:flex items-center gap-2">
-          <span class="text-xs px-2 py-1 border border-white/10 rounded-full text-slate-300">API</span>
-          <input id="api" class="px-3 py-2 w-[320px] rounded-lg bg-[#0f1538] border border-white/10 text-sm" placeholder="https://your-api.onrender.com" />
-          <button id="btnPing" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm">Ping</button>
-          <span id="dbStatus" class="text-xs px-2 py-1 rounded-full border border-white/10 text-slate-300">db?</span>
-          <span id="apiStatus" class="text-xs px-2 py-1 rounded-full border border-white/10 text-slate-300">api?</span>
+        <div class="flex items-center gap-2 text-xs">
+          <span id="dbStatus" class="px-2 py-1 rounded-full border border-white/10 text-slate-300">db?</span>
+          <span id="apiStatus" class="px-2 py-1 rounded-full border border-white/10 text-slate-300">api?</span>
         </div>
         <div class="ml-auto flex items-center gap-3">
           <button id="themeToggle" class="p-2 rounded-lg bg-white/10" title="Toggle theme"><i data-lucide="sun"></i></button>
-          <div class="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/10">
-            <div class="w-6 h-6 rounded-full grad grid place-items-center text-xs font-bold">A</div>
-            <div class="hidden sm:block text-xs text-slate-300">Logged in</div>
-          </div>
+          <button id="btnAccount" class="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/10 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/30" type="button">
+            <div id="accountAvatar" class="w-7 h-7 rounded-full grad grid place-items-center text-xs font-bold">?</div>
+            <div id="accountLabel" class="hidden sm:block text-xs text-slate-300">Sign in</div>
+          </button>
         </div>
       </header>
 
       <main class="p-3 md:p-6 space-y-6">
-        <section class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
-            <div class="text-slate-300 text-sm">Active Flights</div>
-            <div class="text-2xl font-bold mt-1"><span id="kpiFlights">0</span></div>
+        <section data-page="dashboard" class="space-y-6">
+          <div class="grid gap-4 lg:grid-cols-[2fr_1fr]">
+            <div class="border border-white/10 rounded-2xl bg-gradient-to-br from-indigo-600/20 via-purple-600/10 to-sky-500/20 p-6">
+              <div class="flex items-center justify-between gap-2">
+                <div>
+                  <h1 class="text-2xl font-semibold text-white">Crew Dispatch Center</h1>
+                  <p class="text-sm text-slate-200/80 mt-1">Track your assignments, upcoming departures, and new opportunities.</p>
+                </div>
+                <i data-lucide="briefcase" class="w-10 h-10 text-indigo-200 hidden md:block"></i>
+              </div>
+              <div class="mt-4 text-sm text-slate-200/70" id="status">Ready.</div>
+            </div>
+            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-6 space-y-3">
+              <div class="flex items-center justify-between gap-2">
+                <h2 class="text-lg font-semibold">Pilot Roster</h2>
+                <span id="rosterRole" class="text-xs uppercase tracking-wide text-indigo-300/80">Guest</span>
+              </div>
+              <div class="text-sm text-slate-300" id="rosterEmail">Sign in to personalise your dispatch view.</div>
+              <div class="text-xs text-slate-400" id="rosterSince">No profile loaded.</div>
+            </div>
           </div>
-          <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
-            <div class="text-slate-300 text-sm">Telemetry Points</div>
-            <div class="text-2xl font-bold mt-1"><span id="kpiPoints">0</span></div>
+
+          <section class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
+              <div class="text-slate-300 text-sm">Assigned Missions</div>
+              <div class="text-2xl font-bold mt-1"><span id="kpiAssigned">0</span></div>
+            </div>
+            <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
+              <div class="text-slate-300 text-sm">Open Opportunities</div>
+              <div class="text-2xl font-bold mt-1"><span id="kpiAvailable">0</span></div>
+            </div>
+            <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
+              <div class="text-slate-300 text-sm">Next Deadline</div>
+              <div class="text-xl font-semibold mt-1 leading-tight" id="kpiNextDeadline">—</div>
+            </div>
+            <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
+              <div class="text-slate-300 text-sm">Signed In</div>
+              <div class="text-2xl font-bold mt-1 truncate" title="Guest"><span id="kpiAccount">Guest</span></div>
+            </div>
+          </section>
+
+          <div class="grid lg:grid-cols-[1.5fr_1fr] gap-4">
+            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+              <div class="flex items-center justify-between gap-2 mb-3">
+                <div>
+                  <h3 class="text-lg font-semibold text-slate-100">My next mission</h3>
+                  <p class="text-sm text-slate-400">Stay ahead of deadlines with a tailored briefing.</p>
+                </div>
+              </div>
+              <div id="briefingContainer" class="space-y-4"></div>
+              <div id="briefingEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">Claim a job to see your mission briefing.</div>
+            </div>
+            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4 space-y-3">
+              <div>
+                <h3 class="text-lg font-semibold text-slate-100">Operations log</h3>
+                <p class="text-xs text-slate-400">Latest syncs and dispatch updates.</p>
+              </div>
+              <div class="text-sm text-slate-300"><span class="text-slate-400">Last refresh:</span> <span id="kpiLastUpdate">—</span></div>
+              <div class="text-sm text-slate-300"><span class="text-slate-400">Status:</span> <span id="opsSummary">Standing by.</span></div>
+            </div>
           </div>
-          <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
-            <div class="text-slate-300 text-sm">Database</div>
-            <div class="text-2xl font-bold mt-1"><span id="kpiDb">offline</span></div>
-          </div>
-          <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
-            <div class="text-slate-300 text-sm">API</div>
-            <div class="text-2xl font-bold mt-1"><span id="kpiApi">unknown</span></div>
+
+          <div class="grid lg:grid-cols-2 gap-4">
+            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                <div>
+                  <h3 class="text-lg font-semibold text-slate-100">Open opportunities</h3>
+                  <p class="text-sm text-slate-400">Top routes waiting for a crew.</p>
+                </div>
+              </div>
+              <div id="highlightAvailable" class="space-y-3"></div>
+              <div id="highlightAvailableEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">All clear — no unclaimed missions right now.</div>
+            </div>
+            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                <div>
+                  <h3 class="text-lg font-semibold text-slate-100">My hangar</h3>
+                  <p class="text-sm text-slate-400">A quick glance at your claimed assignments.</p>
+                </div>
+              </div>
+              <div id="highlightMine" class="space-y-3"></div>
+              <div id="highlightMineEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">Claim a mission to populate your hangar.</div>
+            </div>
           </div>
         </section>
 
-        <section class="grid lg:grid-cols-[1.6fr_1fr] gap-4">
-          <div class="space-y-4">
-            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
-              <div class="flex items-center justify-between mb-3">
-                <h3 class="font-semibold">Live Map</h3>
-                <div class="text-xs text-slate-400" id="status">Ready.</div>
-              </div>
-              <div id="map" class="h-[440px] rounded-lg overflow-hidden tile-dark"></div>
+        <section data-page="jobs" class="space-y-6 hidden">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 class="text-xl font-semibold">Jobs Board</h2>
+              <p class="text-sm text-slate-400">Create, browse, and claim Microsoft Flight Simulator missions.</p>
             </div>
-            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
-              <div class="flex items-center justify-between mb-3">
-                <h3 class="font-semibold">Altitude (k-index)</h3>
-                <div class="text-xs text-slate-400" id="chartMeta">—</div>
-              </div>
-              <canvas id="altChart" height="160"></canvas>
+            <div class="flex items-center gap-2">
+              <span id="jobsMeta" class="text-xs text-slate-400">—</span>
+              <button id="btnJobsGenerate" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm flex items-center gap-2">
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                <span>SimuNet auto</span>
+              </button>
+              <button id="btnJobsRefresh" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm">Refresh</button>
             </div>
           </div>
 
-          <div class="space-y-4">
-            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
-              <h3 class="font-semibold mb-3">Quick Actions</h3>
-              <div class="space-y-3">
-                <div class="flex gap-2">
-                  <input id="flightId" class="flex-1 px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 text-sm" placeholder="flight_id" />
-                  <button id="btnCopy" class="px-3 py-2 rounded-lg bg-white/10">Copy</button>
+          <div class="grid gap-4 lg:grid-cols-3">
+            <div class="space-y-4">
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+                <div class="flex items-center justify-between gap-2 mb-3">
+                  <h3 class="text-lg font-semibold text-slate-100">Create Flight Job</h3>
+                  <span class="text-xs uppercase tracking-wide text-indigo-300/80">Microsoft Flight Simulator</span>
                 </div>
-                <div class="grid grid-cols-2 gap-2">
-                  <button id="btnSeed" class="px-3 py-2 rounded-lg grad">Seed & Start</button>
-                  <button id="btnLoad" class="px-3 py-2 rounded-lg bg-white/10">Load & Animate</button>
-                  <button id="btnDemo" class="px-3 py-2 rounded-lg bg-white/10 col-span-2">Start Demo Stream</button>
+                <form id="formCreateJob" class="space-y-3">
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobTitle">Mission title</label>
+                    <input id="jobTitle" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Mountain relief drop" required />
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobPayload">Payload</label>
+                    <input id="jobPayload" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Emergency supplies" required />
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobWeight">Weight (lbs)</label>
+                      <input id="jobWeight" type="number" min="0" step="0.1" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="7500" />
+                    </div>
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobDeadline">Deadline</label>
+                      <input id="jobDeadline" type="datetime-local" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" required />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobDeparture">Departure</label>
+                      <input id="jobDeparture" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 uppercase" placeholder="KSEA" required maxlength="8" />
+                    </div>
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobArrival">Arrival</label>
+                      <input id="jobArrival" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 uppercase" placeholder="CYVR" required maxlength="8" />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobTeam">Team visibility</label>
+                      <select id="jobTeam" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 text-sm">
+                        <option value="">Open to everyone</option>
+                      </select>
+                      <p id="jobTeamHint" class="mt-1 text-xs text-slate-500">Join or create a team to dispatch missions directly to them.</p>
+                    </div>
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobAirline">Virtual airline (optional)</label>
+                      <select id="jobAirline" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 text-sm">
+                        <option value="">No airline</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between gap-2">
+                      <label class="block text-xs uppercase tracking-wide text-slate-400" for="jobLegsContainer">Flight legs</label>
+                      <button id="btnAddLeg" type="button" class="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-xs flex items-center gap-1">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>Add leg</span>
+                      </button>
+                    </div>
+                    <div id="jobLegsContainer" class="mt-2 space-y-2"></div>
+                    <p class="text-xs text-slate-500">Define multiple flight segments for complex missions. Leave as-is to mirror the primary route.</p>
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobNotes">Notes</label>
+                    <textarea id="jobNotes" rows="3" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Brief the pilot on weather, cargo handling, or other specifics."></textarea>
+                  </div>
+                  <button type="submit" class="w-full px-3 py-2 rounded-lg grad text-sm font-medium">Publish job</button>
+                </form>
+                <p class="mt-3 text-xs text-slate-400">Jobs are visible to everyone until claimed. Signing in is required to publish or claim.</p>
+              </div>
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4 space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 class="text-lg font-semibold text-slate-100">Team Operations</h3>
+                    <p class="text-xs text-slate-400">Create crews and collaborate on shared missions.</p>
+                  </div>
                 </div>
-                <p class="text-xs text-slate-400">Tip: Pass <code>?api=https://your-api.onrender.com</code> in the URL to preset the API.</p>
+                <form id="formCreateTeam" class="space-y-3">
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="teamName">Team name</label>
+                    <input id="teamName" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Northern Dispatch" required />
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="teamDescription">Description</label>
+                    <input id="teamDescription" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Focuses on mountain cargo hops" />
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="teamAirline">Virtual airline</label>
+                    <select id="teamAirline" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 text-sm">
+                      <option value="">Independent team</option>
+                    </select>
+                  </div>
+                  <button type="submit" class="w-full px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm">Create team</button>
+                </form>
+                <p id="teamStatus" class="text-xs text-slate-400">Sign in to build your crew.</p>
+                <div id="teamList" class="space-y-3 text-sm"></div>
+                <div id="teamEmpty" class="text-xs text-slate-500 text-center py-4 border border-dashed border-white/10 rounded-xl">No teams yet — create one to get started.</div>
+              </div>
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4 space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 class="text-lg font-semibold text-slate-100">Virtual airlines</h3>
+                    <p class="text-xs text-slate-400">Coordinate multi-flight networks under a shared brand.</p>
+                  </div>
+                </div>
+                <form id="formCreateAirline" class="space-y-3 hidden">
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="airlineName">Airline name</label>
+                    <input id="airlineName" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="SimuNet Logistics" />
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="airlineDescription">Description</label>
+                    <textarea id="airlineDescription" rows="2" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Describe the airline's focus areas."></textarea>
+                  </div>
+                  <button type="submit" class="w-full px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm">Create airline</button>
+                </form>
+                <p id="airlineStatus" class="text-xs text-slate-400">Teams linked to an airline can share complex missions.</p>
+                <div id="airlineList" class="space-y-3 text-sm"></div>
+                <div id="airlineEmpty" class="text-xs text-slate-500 text-center py-4 border border-dashed border-white/10 rounded-xl">No virtual airlines recorded yet.</div>
+              </div>
+            </div>
+
+            <div class="lg:col-span-2 space-y-4">
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                  <div>
+                    <h3 class="text-lg font-semibold text-slate-100">Available jobs</h3>
+                    <p class="text-sm text-slate-400">Pick a mission to add it to your hangar.</p>
+                  </div>
+                </div>
+                <div id="jobsAvailable" class="space-y-3"></div>
+                <div id="jobsAvailableEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">No jobs available yet. Create one to get started.</div>
+              </div>
+
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                  <div>
+                    <h3 class="text-lg font-semibold text-slate-100">My jobs</h3>
+                    <p class="text-sm text-slate-400">Claimed missions stay private to your account.</p>
+                  </div>
+                </div>
+                <div id="jobsMine" class="space-y-3"></div>
+                <div id="jobsMineEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">Sign in to track claimed jobs.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section data-page="admin" class="space-y-6 hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 class="text-xl font-semibold">Admin Control Center</h2>
+              <p class="text-sm text-slate-400">Manage SimuNet missions and pilot profiles.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="adminStatus" class="text-xs text-slate-400">Sign in with an administrator account to continue.</span>
+              <button id="btnAdminRefresh" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm hidden">Refresh</button>
+            </div>
+          </div>
+
+          <div id="adminGate" class="border border-dashed border-indigo-400/60 bg-indigo-500/5 rounded-2xl p-6 text-sm text-slate-200">
+            Sign in as a SimuNet administrator to access mission publishing, moderation, and crew management tools.
+          </div>
+
+          <div id="adminContent" class="space-y-6 hidden">
+            <div class="grid lg:grid-cols-2 gap-4">
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4 space-y-4">
+                <div class="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 class="text-lg font-semibold text-slate-100">Publish mission</h3>
+                    <p class="text-xs text-slate-400">Create assignments on behalf of SimuNet Ops.</p>
+                  </div>
+                </div>
+                <form id="formAdminJob" class="space-y-3">
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobTitle">Mission title</label>
+                    <input id="adminJobTitle" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Arctic supply run" required />
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobPayload">Payload</label>
+                    <input id="adminJobPayload" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Medical cargo" required />
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobWeight">Weight (lbs)</label>
+                      <input id="adminJobWeight" type="number" min="0" step="0.1" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="6800" />
+                    </div>
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobDeadline">Deadline</label>
+                      <input id="adminJobDeadline" type="datetime-local" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" required />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobDeparture">Departure</label>
+                      <input id="adminJobDeparture" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 uppercase" placeholder="KSEA" required maxlength="8" />
+                    </div>
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobArrival">Arrival</label>
+                      <input id="adminJobArrival" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 uppercase" placeholder="CYVR" required maxlength="8" />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobTeam">Team</label>
+                      <select id="adminJobTeam" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 text-sm">
+                        <option value="">No team</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobAirline">Virtual airline</label>
+                      <select id="adminJobAirline" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 text-sm">
+                        <option value="">No airline</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between gap-2">
+                      <label class="block text-xs uppercase tracking-wide text-slate-400" for="adminLegsContainer">Flight legs</label>
+                      <button id="btnAdminAddLeg" type="button" class="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-xs flex items-center gap-1">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>Add leg</span>
+                      </button>
+                    </div>
+                    <div id="adminLegsContainer" class="mt-2 space-y-2"></div>
+                    <p class="text-xs text-slate-500">Admins can publish multi-flight assignments for teams or virtual airlines.</p>
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobAssign">Assign to (optional)</label>
+                    <input id="adminJobAssign" type="email" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="pilot@example.com" />
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobNotes">Notes</label>
+                    <textarea id="adminJobNotes" rows="3" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Share weather, coordination, or cargo handling details."></textarea>
+                  </div>
+                  <button type="submit" class="w-full px-3 py-2 rounded-lg grad text-sm font-medium">Publish mission</button>
+                </form>
+                <p class="text-xs text-slate-400">Assignments can optionally be pre-assigned to a pilot email. Leave blank to keep them open.</p>
+              </div>
+
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4 space-y-4">
+                <div>
+                  <h3 class="text-lg font-semibold text-slate-100">SimuNet Ops tools</h3>
+                  <p class="text-xs text-slate-400">Automate job creation and keep the board refreshed.</p>
+                </div>
+                <div class="space-y-3">
+                  <button id="btnAdminGenerate" type="button" class="w-full px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm flex items-center justify-center gap-2">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>Generate SimuNet missions</span>
+                  </button>
+                  <p class="text-xs text-slate-400">SimuNet Ops missions come with curated payloads, routes, and deadlines.</p>
+                </div>
               </div>
             </div>
 
             <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
-              <h3 class="font-semibold mb-3">Recent Flights</h3>
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                <div>
+                  <h3 class="text-lg font-semibold text-slate-100">All jobs</h3>
+                  <p class="text-sm text-slate-400">Monitor and remove assignments across the network.</p>
+                </div>
+              </div>
               <div class="overflow-auto">
                 <table class="w-full text-sm">
                   <thead class="text-left text-slate-300">
-                    <tr><th class="py-2">Flight ID</th><th class="py-2">Points</th><th class="py-2">Last Used</th></tr>
+                    <tr>
+                      <th class="py-2">Mission</th>
+                      <th class="py-2">Creator</th>
+                      <th class="py-2">Assigned</th>
+                      <th class="py-2">Visibility</th>
+                      <th class="py-2">Deadline</th>
+                      <th class="py-2 text-right">Actions</th>
+                    </tr>
                   </thead>
-                  <tbody id="recentTable" class="text-slate-400"></tbody>
+                  <tbody id="adminJobsBody" class="text-slate-400"></tbody>
                 </table>
               </div>
+              <div id="adminJobsEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">No jobs recorded yet.</div>
+            </div>
+
+            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                <div>
+                  <h3 class="text-lg font-semibold text-slate-100">User directory</h3>
+                  <p class="text-sm text-slate-400">Promote admins, reset passwords, or remove inactive accounts.</p>
+                </div>
+              </div>
+              <div class="overflow-auto">
+                <table class="w-full text-sm">
+                  <thead class="text-left text-slate-300">
+                    <tr>
+                      <th class="py-2">Email</th>
+                      <th class="py-2">Role</th>
+                      <th class="py-2">Created</th>
+                      <th class="py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminUsersBody" class="text-slate-400"></tbody>
+                </table>
+              </div>
+              <div id="adminUsersEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">No users found.</div>
             </div>
           </div>
         </section>
@@ -122,161 +457,2250 @@
     </div>
   </div>
 
+  <div id="authSheet" class="hidden fixed inset-0 z-[1200] p-4 md:p-8 bg-black/70 backdrop-blur-sm">
+    <div class="relative max-w-md mx-auto mt-12 md:mt-20 bg-[#0f1430] border border-white/10 rounded-2xl p-6 shadow-2xl">
+      <button id="btnAuthClose" class="absolute top-4 right-4 text-slate-400 hover:text-slate-200" type="button" aria-label="Close">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="space-y-1 text-center mb-4">
+        <h2 class="text-lg font-semibold" id="authTitle">Welcome</h2>
+        <p class="text-sm text-slate-400" id="authSubtitle">Sign in or create an account to personalise your dashboard.</p>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-sm mb-4">
+        <button class="auth-tab px-3 py-2 rounded-lg bg-white/10 text-white" data-auth-tab="login" type="button">Log in</button>
+        <button class="auth-tab px-3 py-2 rounded-lg bg-white/5 text-slate-300 hover:bg-white/10" data-auth-tab="register" type="button">Create account</button>
+      </div>
+      <div id="authAccountSummary" class="hidden text-left mb-4 border border-white/10 rounded-xl p-4 bg-[#0b1020]/60">
+        <div class="font-medium text-slate-100" id="summaryEmail"></div>
+        <div class="text-xs text-slate-400" id="summaryCreated"></div>
+      </div>
+      <div id="authError" class="hidden mb-3 text-sm text-rose-300 bg-rose-500/10 border border-rose-400/40 rounded-lg px-3 py-2"></div>
+      <div id="authSuccess" class="hidden mb-3 text-sm text-emerald-300 bg-emerald-500/10 border border-emerald-400/40 rounded-lg px-3 py-2"></div>
+      <form id="formLogin" class="space-y-3">
+        <div class="text-left">
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="loginEmail">Email</label>
+          <input id="loginEmail" type="email" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="you@example.com" autocomplete="email" required />
+        </div>
+        <div class="text-left">
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="loginPassword">Password</label>
+          <input id="loginPassword" type="password" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="••••••••" autocomplete="current-password" minlength="8" required />
+        </div>
+        <button type="submit" class="w-full px-3 py-2 rounded-lg grad text-sm font-medium">Log in</button>
+      </form>
+      <form id="formRegister" class="space-y-3 hidden">
+        <div class="text-left">
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="registerEmail">Email</label>
+          <input id="registerEmail" type="email" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="you@example.com" autocomplete="email" required />
+        </div>
+        <div class="text-left">
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="registerPassword">Password</label>
+          <input id="registerPassword" type="password" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Min. 8 characters" autocomplete="new-password" minlength="8" required />
+        </div>
+        <p class="text-xs text-slate-400">Passwords are stored securely using PBKDF2 hashing.</p>
+        <button type="submit" class="w-full px-3 py-2 rounded-lg grad text-sm font-medium">Create account</button>
+      </form>
+      <button id="btnLogout" class="hidden w-full mt-4 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm" type="button">Sign out</button>
+    </div>
+  </div>
+
   <script>
     lucide.createIcons();
-    document.getElementById('themeToggle').addEventListener('click', ()=> document.documentElement.classList.toggle('dark'));
+    document.getElementById('themeToggle').addEventListener('click', () => document.documentElement.classList.toggle('dark'));
 
     const ls = window.localStorage;
-    const qsApi = new URLSearchParams(location.search).get('api');
-    const apiInput = document.getElementById('api');
-    const detected = (location.origin.includes('localhost') || location.protocol==='file:') ? 'http://localhost:8000' : location.origin;
-    apiInput.value = qsApi || ls.getItem('simunet_api') || detected;
-    apiInput.addEventListener('change', ()=> ls.setItem('simunet_api', apiInput.value.trim()));
+    const USER_KEY = 'simunet_user';
 
-    const map = L.map('map', { zoomControl: true }).setView([39.5,-98.35], 4);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
-    const pathLine = L.polyline([], { weight: 3, opacity: .95 }).addTo(map);
-    const marker = L.circleMarker([0,0], { radius: 6, weight: 2 }).addTo(map);
+    const API_BASE = (() => {
+      const param = new URLSearchParams(location.search).get('api');
+      if (param) {
+        return param.replace(/\/$/, '');
+      }
+      const origin = location.origin;
+      if (origin && origin !== 'null' && !origin.startsWith('file:')) {
+        return origin.replace(/\/$/, '');
+      }
+      return 'http://localhost:8000';
+    })();
 
     const statusEl = document.getElementById('status');
-    const kpiFlights = document.getElementById('kpiFlights');
-    const kpiPoints  = document.getElementById('kpiPoints');
-    const kpiDb      = document.getElementById('kpiDb');
-    const kpiApi     = document.getElementById('kpiApi');
-    const dbStatus   = document.getElementById('dbStatus');
-    const apiStatus  = document.getElementById('apiStatus');
-    const flightIdEl = document.getElementById('flightId');
-    const recentTable = document.getElementById('recentTable');
-    const chartMeta = document.getElementById('chartMeta');
+    const kpiAssigned = document.getElementById('kpiAssigned');
+    const kpiAvailable = document.getElementById('kpiAvailable');
+    const kpiNextDeadline = document.getElementById('kpiNextDeadline');
+    const kpiLastUpdate = document.getElementById('kpiLastUpdate');
+    const kpiAccount = document.getElementById('kpiAccount');
+    const opsSummary = document.getElementById('opsSummary');
+    const dbStatus = document.getElementById('dbStatus');
+    const apiStatus = document.getElementById('apiStatus');
+    const rosterEmail = document.getElementById('rosterEmail');
+    const rosterRole = document.getElementById('rosterRole');
+    const rosterSince = document.getElementById('rosterSince');
+    const briefingContainer = document.getElementById('briefingContainer');
+    const briefingEmpty = document.getElementById('briefingEmpty');
+    const highlightAvailable = document.getElementById('highlightAvailable');
+    const highlightAvailableEmpty = document.getElementById('highlightAvailableEmpty');
+    const highlightMine = document.getElementById('highlightMine');
+    const highlightMineEmpty = document.getElementById('highlightMineEmpty');
+    const jobsAvailable = document.getElementById('jobsAvailable');
+    const jobsAvailableEmpty = document.getElementById('jobsAvailableEmpty');
+    const jobsMine = document.getElementById('jobsMine');
+    const jobsMineEmpty = document.getElementById('jobsMineEmpty');
+    const jobsMeta = document.getElementById('jobsMeta');
+    const btnJobsGenerate = document.getElementById('btnJobsGenerate');
+    const btnJobsRefresh = document.getElementById('btnJobsRefresh');
+    const formCreateJob = document.getElementById('formCreateJob');
+    const jobTitle = document.getElementById('jobTitle');
+    const jobPayload = document.getElementById('jobPayload');
+    const jobWeight = document.getElementById('jobWeight');
+    const jobDeparture = document.getElementById('jobDeparture');
+    const jobArrival = document.getElementById('jobArrival');
+    const jobDeadline = document.getElementById('jobDeadline');
+    const jobNotes = document.getElementById('jobNotes');
+    const jobTeam = document.getElementById('jobTeam');
+    const jobAirline = document.getElementById('jobAirline');
+    const jobTeamHint = document.getElementById('jobTeamHint');
+    const jobLegsContainer = document.getElementById('jobLegsContainer');
+    const btnAddLeg = document.getElementById('btnAddLeg');
+    const formCreateTeam = document.getElementById('formCreateTeam');
+    const teamName = document.getElementById('teamName');
+    const teamDescription = document.getElementById('teamDescription');
+    const teamAirline = document.getElementById('teamAirline');
+    const teamStatus = document.getElementById('teamStatus');
+    const teamList = document.getElementById('teamList');
+    const teamEmpty = document.getElementById('teamEmpty');
+    const formCreateAirline = document.getElementById('formCreateAirline');
+    const airlineName = document.getElementById('airlineName');
+    const airlineDescription = document.getElementById('airlineDescription');
+    const airlineStatus = document.getElementById('airlineStatus');
+    const airlineList = document.getElementById('airlineList');
+    const airlineEmpty = document.getElementById('airlineEmpty');
+    const navAdmin = document.getElementById('navAdmin');
+    const adminStatus = document.getElementById('adminStatus');
+    const adminGate = document.getElementById('adminGate');
+    const adminContent = document.getElementById('adminContent');
+    const btnAdminRefresh = document.getElementById('btnAdminRefresh');
+    const btnAdminGenerate = document.getElementById('btnAdminGenerate');
+    const formAdminJob = document.getElementById('formAdminJob');
+    const adminJobTitle = document.getElementById('adminJobTitle');
+    const adminJobPayload = document.getElementById('adminJobPayload');
+    const adminJobWeight = document.getElementById('adminJobWeight');
+    const adminJobDeparture = document.getElementById('adminJobDeparture');
+    const adminJobArrival = document.getElementById('adminJobArrival');
+    const adminJobDeadline = document.getElementById('adminJobDeadline');
+    const adminJobNotes = document.getElementById('adminJobNotes');
+    const adminJobAssign = document.getElementById('adminJobAssign');
+    const adminJobTeam = document.getElementById('adminJobTeam');
+    const adminJobAirline = document.getElementById('adminJobAirline');
+    const adminLegsContainer = document.getElementById('adminLegsContainer');
+    const btnAdminAddLeg = document.getElementById('btnAdminAddLeg');
+    const adminJobsBody = document.getElementById('adminJobsBody');
+    const adminJobsEmpty = document.getElementById('adminJobsEmpty');
+    const adminUsersBody = document.getElementById('adminUsersBody');
+    const adminUsersEmpty = document.getElementById('adminUsersEmpty');
+    const pages = document.querySelectorAll('[data-page]');
+    const navLinks = document.querySelectorAll('[data-nav]');
+    const accountButton = document.getElementById('btnAccount');
+    const accountAvatar = document.getElementById('accountAvatar');
+    const accountLabel = document.getElementById('accountLabel');
+    const authSheet = document.getElementById('authSheet');
+    const btnAuthClose = document.getElementById('btnAuthClose');
+    const authTabs = document.querySelectorAll('.auth-tab');
+    const formLogin = document.getElementById('formLogin');
+    const formRegister = document.getElementById('formRegister');
+    const loginEmail = document.getElementById('loginEmail');
+    const loginPassword = document.getElementById('loginPassword');
+    const registerEmail = document.getElementById('registerEmail');
+    const registerPassword = document.getElementById('registerPassword');
+    const authError = document.getElementById('authError');
+    const authSuccess = document.getElementById('authSuccess');
+    const authAccountSummary = document.getElementById('authAccountSummary');
+    const summaryEmail = document.getElementById('summaryEmail');
+    const summaryCreated = document.getElementById('summaryCreated');
+    const btnLogout = document.getElementById('btnLogout');
+    const authTitle = document.getElementById('authTitle');
+    const authSubtitle = document.getElementById('authSubtitle');
 
-    function setBadge(el, text, cls){
+    let jobsLoaded = false;
+    let adminLoaded = false;
+    let jobLegEditor = null;
+    let adminLegEditor = null;
+
+    function setJobDeadlineDefault(input) {
+      if (!input) {
+        return;
+      }
+      const baseline = new Date(Date.now() + 2 * 60 * 60 * 1000);
+      const tzOffset = baseline.getTimezoneOffset() * 60000;
+      const local = new Date(baseline.getTime() - tzOffset);
+      input.value = local.toISOString().slice(0, 16);
+    }
+
+    setJobDeadlineDefault(jobDeadline);
+    setJobDeadlineDefault(adminJobDeadline);
+
+    [jobDeparture, jobArrival, adminJobDeparture, adminJobArrival].forEach((input) => {
+      if (!input) {
+        return;
+      }
+      input.addEventListener('blur', () => {
+        input.value = input.value.trim().toUpperCase();
+      });
+    });
+    jobLegEditor = createLegEditor(jobLegsContainer, btnAddLeg, () => ({
+      origin: jobDeparture ? jobDeparture.value.trim().toUpperCase() : '',
+      destination: jobArrival ? jobArrival.value.trim().toUpperCase() : '',
+    }));
+    adminLegEditor = createLegEditor(adminLegsContainer, btnAdminAddLeg, () => ({
+      origin: adminJobDeparture ? adminJobDeparture.value.trim().toUpperCase() : '',
+      destination: adminJobArrival ? adminJobArrival.value.trim().toUpperCase() : '',
+    }));
+    let currentUser = null;
+    let crewTeams = [];
+    let crewAirlines = [];
+    let crewTeamMemberships = new Set();
+    let crewAirlineMemberships = new Set();
+
+    function setBadge(el, text, cls) {
+      if (!el) {
+        return;
+      }
       el.textContent = text;
       el.className = 'text-xs px-2 py-1 rounded-full border ' + (cls || 'border-white/10 text-slate-300');
     }
-    function fmtDate(n){ const d = new Date(n); return d.toLocaleString(); }
 
-    function saveRecent(fid, count){
-      const rec = JSON.parse(ls.getItem('simunet_recent') || '[]');
-      const now = Date.now();
-      const idx = rec.findIndex(r => r.flight_id === fid);
-      if(idx>=0){ rec[idx] = { flight_id: fid, points: count, used_at: now }; }
-      else { rec.unshift({ flight_id: fid, points: count, used_at: now }); }
-      ls.setItem('simunet_recent', JSON.stringify(rec.slice(0,25)));
-      renderRecent();
-    }
-    function renderRecent(){
-      const rec = JSON.parse(ls.getItem('simunet_recent') || '[]');
-      recentTable.innerHTML = '';
-      rec.forEach(r => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = '<td class="py-2"><button class="underline hover:text-slate-200" data-fid="'+r.flight_id+'">'+r.flight_id+'</button></td>' +
-                       '<td class="py-2 text-slate-300">'+(r.points||0)+'</td>' +
-                       '<td class="py-2">'+fmtDate(r.used_at)+'</td>';
-        tr.querySelector('button').onclick = (e)=> { flightIdEl.value = e.target.dataset.fid; };
-        recentTable.appendChild(tr);
-      });
-      kpiFlights.textContent = rec.length;
-    }
-    renderRecent();
-
-    async function apiFetch(path, opts){
-      const api = apiInput.value.trim().replace(/\/$/, '');
-      const r = await fetch(api + path, opts);
-      if (!r.ok) throw new Error((await r.text()) || ('HTTP ' + r.status));
-      return r.json();
+    function fmtDate(value) {
+      if (!value) return '—';
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return value;
+      return d.toLocaleString();
     }
 
-    document.getElementById('btnPing').addEventListener('click', async ()=>{
-      setBadge(apiStatus, 'checking...', 'border-white/10 text-slate-400');
-      try{
-        const s = await apiFetch('/status');
-        kpiDb.textContent = s.db ? 'online' : 'offline';
-        setBadge(dbStatus, s.db ? 'db: online' : 'db: offline', s.db ? 'border-emerald-400/40 text-emerald-300' : 'border-amber-400/40 text-amber-300');
-        setBadge(apiStatus, 'reachable', 'border-emerald-400/40 text-emerald-300');
-        kpiApi.textContent = 'reachable';
-        statusEl.textContent = 'OK';
-      }catch(e){
-        kpiDb.textContent = 'offline';
-        setBadge(dbStatus, 'db: error', 'border-rose-400/40 text-rose-300');
-        setBadge(apiStatus, 'unreachable', 'border-rose-400/40 text-rose-300');
-        kpiApi.textContent = 'unreachable';
-        statusEl.textContent = 'API not reachable.';
-      }
-    });
-
-    document.getElementById('btnCopy').addEventListener('click', async ()=>{
-      const fid = flightIdEl.value.trim(); if(!fid) return;
-      try{ await navigator.clipboard.writeText(fid);}catch{}
-    });
-
-    document.getElementById('btnSeed').addEventListener('click', async ()=>{
-      statusEl.textContent = 'Seeding...';
-      try{
-        const seeded = await apiFetch('/dev/reseed', { method:'POST' });
-        const started = await apiFetch('/flights?assignment_id='+encodeURIComponent(seeded.job_id)+'&seq=1&mode=truck', { method:'POST' });
-        flightIdEl.value = started.flight_id;
-        saveRecent(started.flight_id, 0);
-        statusEl.textContent = 'Created flight '+started.flight_id;
-      }catch(e){
-        console.error(e); statusEl.textContent = 'Seed/start failed.';
-      }
-    });
-
-    async function fetchTelemetry(fid){
-      const data = await apiFetch('/telemetry/'+encodeURIComponent(fid));
-      return data.points || [];
-    }
-    function fitPath(points){
-      if(!points.length) return;
-      const latlngs = points.map(p => [p.lat, p.lon]);
-      map.fitBounds(L.latLngBounds(latlngs), { padding: [20,20] });
-    }
-    function sleep(ms){ return new Promise(res=>setTimeout(res, ms)); }
-
-    const ctx = document.getElementById('altChart');
-    let altChart = new Chart(ctx, {
-      type: 'line',
-      data: { labels: [], datasets: [{ label: 'Altitude', data: [], tension: 0.3 }]},
-      options: { plugins:{ legend:{ labels:{ color:'#cbd5e1' } } }, scales:{ x:{ ticks:{ color:'#cbd5e1' }}, y:{ ticks:{ color:'#cbd5e1' }}} }
-    });
-
-    document.getElementById('btnLoad').addEventListener('click', async ()=>{
-      const fid = flightIdEl.value.trim(); if(!fid){ alert('Enter a flight_id.'); return; }
-      statusEl.textContent = 'Loading telemetry...';
-      try{
-        const pts = await fetchTelemetry(fid);
-        kpiPoints.textContent = pts.length;
-        saveRecent(fid, pts.length);
-        if(!pts.length){ statusEl.textContent = 'No points yet. Add via Demo Stream or your connector.'; return; }
-        const latlngs = pts.map(p => [p.lat, p.lon]);
-        pathLine.setLatLngs(latlngs);
-        marker.setLatLng(latlngs[latlngs.length-1]);
-        fitPath(pts);
-        altChart.data.labels = pts.map(p => p.k);
-        altChart.data.datasets[0].data = pts.map(p => p.alt || 0);
-        altChart.update();
-        document.getElementById('chartMeta').textContent = pts.length+' points • last k='+pts[pts.length-1].k;
-        for(const p of pts){ marker.setLatLng([p.lat, p.lon]); await sleep(110); }
-        statusEl.textContent = 'Rendered '+pts.length+' points.';
-      }catch(e){ console.error(e); statusEl.textContent = 'Load failed.'; }
-    });
-
-    document.getElementById('btnDemo').addEventListener('click', async ()=>{
-      const fid = flightIdEl.value.trim(); if(!fid){ alert('Create or paste a flight_id first.'); return; }
-      statusEl.textContent = 'Streaming demo telemetry...';
-      try{
-        let lat=40.7, lon=-74.0, alt=50;
-        for(let k=0; k<80; k++){
-          const pt = { flight_id: fid, k, lat, lon, alt, ts: new Date().toISOString() };
-          await apiFetch('/telemetry', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(pt)});
-          lat += 0.002; lon += 0.004; alt += (k%12===0? 20: 0);
-          await sleep(110);
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => {
+        switch (char) {
+          case '&': return '&amp;';
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '"': return '&quot;';
+          case "'": return '&#39;';
+          default: return char;
         }
-        statusEl.textContent = 'Demo stream complete. Click "Load & Animate".';
-      }catch(e){ console.error(e); statusEl.textContent = 'Demo stream failed.'; }
+      });
+    }
+
+    function formatLegSummary(legs) {
+      if (!Array.isArray(legs) || legs.length === 0) {
+        return 'Primary route';
+      }
+      return legs.map((leg, index) => {
+        const origin = leg && leg.origin_airport ? String(leg.origin_airport).toUpperCase() : '';
+        const destination = leg && leg.destination_airport ? String(leg.destination_airport).toUpperCase() : '';
+        if (origin && destination) {
+          return `${index + 1}) ${origin} → ${destination}`;
+        }
+        if (origin || destination) {
+          return `${index + 1}) ${origin || destination}`;
+        }
+        return `${index + 1}) Flight leg`;
+      }).join('; ');
+    }
+
+    function getRouteDetails(job) {
+      const fallbackDeparture = job && job.departure_airport ? String(job.departure_airport).toUpperCase() : '';
+      const fallbackArrival = job && job.arrival_airport ? String(job.arrival_airport).toUpperCase() : '';
+      const legsRaw = Array.isArray(job && job.legs) ? job.legs : [];
+      const legs = legsRaw
+        .filter((leg) => leg && (leg.origin_airport || leg.destination_airport))
+        .map((leg, index) => ({
+          seq: Number.isFinite(Number(leg.seq)) ? Number(leg.seq) : index + 1,
+          mode: leg && leg.mode ? leg.mode : 'flight',
+          origin_airport: leg && leg.origin_airport ? String(leg.origin_airport).toUpperCase() : '',
+          destination_airport: leg && leg.destination_airport ? String(leg.destination_airport).toUpperCase() : '',
+        }));
+
+      const firstLeg = legs.length > 0 ? legs[0] : null;
+      const lastLeg = legs.length > 0 ? legs[legs.length - 1] : null;
+
+      const departure = (firstLeg && firstLeg.origin_airport) || fallbackDeparture || '—';
+      const arrival = (lastLeg && lastLeg.destination_airport) || fallbackArrival || '—';
+
+      return { departure, arrival, legs };
+    }
+
+    function summarizeRoute(job) {
+      const { departure, arrival, legs } = getRouteDetails(job);
+      const legCount = legs.length;
+      const suffix = legCount > 1 ? ` • ${legCount} legs` : '';
+      return `${departure} → ${arrival}${suffix}`;
+    }
+
+    function createLegSummaryElement(legs) {
+      if (!Array.isArray(legs) || legs.length <= 1) {
+        return null;
+      }
+      const summary = formatLegSummary(legs);
+      const element = document.createElement('div');
+      element.className = 'text-[11px] text-slate-400 mt-1';
+      element.textContent = summary;
+      return element;
+    }
+
+    function createAffiliationBadges(job) {
+      const badges = [];
+      if (job && job.team_name) {
+        badges.push({ label: job.team_name, kind: 'Team' });
+      }
+      if (job && job.airline_name) {
+        badges.push({ label: job.airline_name, kind: 'Airline' });
+      }
+      if (!badges.length) {
+        return null;
+      }
+      const wrapper = document.createElement('div');
+      wrapper.className = 'flex flex-wrap gap-2 text-[11px] uppercase tracking-wide text-slate-300';
+      badges.forEach((badge) => {
+        const pill = document.createElement('span');
+        pill.className = 'px-2 py-1 rounded-full bg-white/5 border border-white/10';
+        pill.textContent = `${badge.kind} • ${badge.label}`;
+        wrapper.appendChild(pill);
+      });
+      return wrapper;
+    }
+
+    function updateStatusMessage(text) {
+      if (statusEl) {
+        statusEl.textContent = text;
+      }
+      if (opsSummary) {
+        opsSummary.textContent = text;
+      }
+    }
+
+    async function apiFetch(path, opts = {}) {
+      const response = await fetch(API_BASE + path, opts);
+      const text = await response.text();
+      let data = {};
+      if (text) {
+        try { data = JSON.parse(text); } catch (err) { data = text; }
+      }
+      if (!response.ok) {
+        if (data && typeof data === 'object' && data.detail) {
+          throw new Error(data.detail);
+        }
+        throw new Error(typeof data === 'string' ? data : ('HTTP ' + response.status));
+      }
+      if (typeof data === 'string' || data === null) {
+        return { ok: true, detail: data };
+      }
+      return data;
+    }
+
+    function populateSelect(selectEl, options, config = {}) {
+      if (!selectEl) {
+        return;
+      }
+      const {
+        includeEmpty = true,
+        emptyLabel = 'None',
+        valueKey = 'id',
+        labelKey = 'name',
+        selected,
+      } = config;
+
+      const previous = selected !== undefined ? selected : selectEl.value;
+      selectEl.innerHTML = '';
+      if (includeEmpty) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = emptyLabel;
+        selectEl.appendChild(opt);
+      }
+
+      (options || []).forEach((item) => {
+        if (!item || item[valueKey] === undefined || item[valueKey] === null) {
+          return;
+        }
+        const opt = document.createElement('option');
+        opt.value = String(item[valueKey]);
+        opt.textContent = item[labelKey] || String(item[valueKey]);
+        selectEl.appendChild(opt);
+      });
+
+      const hasPrevious = Array.from(selectEl.options).some((option) => option.value === previous);
+      if (hasPrevious) {
+        selectEl.value = previous;
+      }
+    }
+
+    function createLegEditor(container, addButton, getDefaults) {
+      if (!container) {
+        return {
+          collect: () => [],
+          reset: () => {},
+          setLegs: () => {},
+        };
+      }
+
+      const defaults = () => {
+        if (typeof getDefaults === 'function') {
+          const value = getDefaults();
+          if (value && typeof value === 'object') {
+            return value;
+          }
+        }
+        return {};
+      };
+
+      const addLeg = (prefill = {}) => {
+        const row = document.createElement('div');
+        row.dataset.legRow = 'true';
+        row.className = 'grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-end';
+        row.innerHTML = `
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Origin</label>
+            <input data-leg-origin type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 uppercase" placeholder="KSEA" maxlength="8" />
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Destination</label>
+            <input data-leg-destination type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 uppercase" placeholder="CYVR" maxlength="8" />
+          </div>
+          <div class="flex items-center sm:items-end justify-end h-full">
+            <button type="button" data-leg-remove class="px-2 py-1 rounded bg-white/10 hover:bg-white/15 text-xs">Remove</button>
+          </div>
+        `;
+        const originInput = row.querySelector('[data-leg-origin]');
+        const destinationInput = row.querySelector('[data-leg-destination]');
+        const removeButton = row.querySelector('[data-leg-remove]');
+        const base = defaults();
+        if (originInput) {
+          originInput.value = (prefill.origin_airport || base.origin || '').toUpperCase();
+          originInput.addEventListener('blur', () => {
+            originInput.value = originInput.value.trim().toUpperCase();
+          });
+        }
+        if (destinationInput) {
+          destinationInput.value = (prefill.destination_airport || base.destination || '').toUpperCase();
+          destinationInput.addEventListener('blur', () => {
+            destinationInput.value = destinationInput.value.trim().toUpperCase();
+          });
+        }
+        if (removeButton) {
+          removeButton.addEventListener('click', () => {
+            if (container.querySelectorAll('[data-leg-row]').length <= 1) {
+              if (originInput) originInput.value = '';
+              if (destinationInput) destinationInput.value = '';
+              return;
+            }
+            container.removeChild(row);
+          });
+        }
+        container.appendChild(row);
+      };
+
+      const collect = () => {
+        const rows = Array.from(container.querySelectorAll('[data-leg-row]'));
+        if (!rows.length) {
+          addLeg({});
+          return collect();
+        }
+        const base = defaults();
+        return rows.map((row, index) => {
+          const originInput = row.querySelector('[data-leg-origin]');
+          const destinationInput = row.querySelector('[data-leg-destination]');
+          const origin = originInput ? originInput.value.trim().toUpperCase() : '';
+          const destination = destinationInput ? destinationInput.value.trim().toUpperCase() : '';
+          return {
+            seq: index + 1,
+            mode: 'flight',
+            origin_airport: origin || base.origin || null,
+            destination_airport: destination || base.destination || null,
+          };
+        });
+      };
+
+      const reset = () => {
+        container.innerHTML = '';
+        addLeg({});
+      };
+
+      const setLegs = (legs) => {
+        container.innerHTML = '';
+        if (Array.isArray(legs) && legs.length) {
+          legs.forEach((leg) => addLeg(leg));
+        } else {
+          addLeg({});
+        }
+      };
+
+      if (addButton) {
+        addButton.addEventListener('click', () => addLeg({}));
+      }
+
+      reset();
+      return { collect, reset, setLegs };
+    }
+
+    function toggleFormEnabled(form, enabled) {
+      if (!form) {
+        return;
+      }
+      const elements = form.querySelectorAll('input, select, textarea, button');
+      elements.forEach((el) => {
+        el.disabled = !enabled;
+      });
+      form.classList.toggle('opacity-60', !enabled);
+      form.classList.toggle('pointer-events-none', !enabled);
+    }
+
+    function resetCrewContext() {
+      crewTeams = [];
+      crewAirlines = [];
+      crewTeamMemberships = new Set();
+      crewAirlineMemberships = new Set();
+      updateTeamUI();
+      updateAirlineUI();
+      populateTeamSelects();
+    }
+
+    function populateTeamSelects() {
+      const isAdmin = Boolean(currentUser && currentUser.is_admin);
+      const memberTeams = crewTeams.filter((team) => crewTeamMemberships.has(team.id));
+      const airlineOptions = crewAirlines.filter((airline) => isAdmin || crewAirlineMemberships.has(airline.id) || airline.is_member);
+
+      populateSelect(jobTeam, memberTeams, { includeEmpty: true, emptyLabel: 'Open to everyone' });
+      populateSelect(jobAirline, airlineOptions, { includeEmpty: true, emptyLabel: 'No airline' });
+      populateSelect(teamAirline, airlineOptions, { includeEmpty: true, emptyLabel: 'Independent team' });
+      populateSelect(adminJobTeam, crewTeams, { includeEmpty: true, emptyLabel: 'No team' });
+      populateSelect(adminJobAirline, crewAirlines, { includeEmpty: true, emptyLabel: 'No airline' });
+    }
+
+    function updateTeamUI() {
+      if (!teamList || !teamEmpty || !teamStatus) {
+        return;
+      }
+
+      teamList.innerHTML = '';
+
+      if (!currentUser || !currentUser.email) {
+        teamStatus.textContent = 'Sign in to build your crew.';
+        teamEmpty.classList.remove('hidden');
+        toggleFormEnabled(formCreateTeam, false);
+        if (jobTeamHint) {
+          jobTeamHint.textContent = 'Join or create a team to dispatch missions directly to them.';
+        }
+        return;
+      }
+
+      toggleFormEnabled(formCreateTeam, true);
+      const sorted = [...crewTeams].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      if (sorted.length === 0) {
+        teamStatus.textContent = 'Create a team to start collaborating with other pilots.';
+        teamEmpty.classList.remove('hidden');
+      } else {
+        teamStatus.textContent = 'Manage memberships or create a new crew.';
+        teamEmpty.classList.add('hidden');
+      }
+
+      if (jobTeamHint) {
+        jobTeamHint.textContent = crewTeamMemberships.size > 0
+          ? 'Select a team to make the mission visible only to its members.'
+          : 'Join or create a team to dispatch missions directly to them.';
+      }
+
+      sorted.forEach((team) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'border border-white/10 rounded-xl p-3 bg-[#0b1020]/60 space-y-2';
+
+        const header = document.createElement('div');
+        header.className = 'flex items-center justify-between gap-2';
+        const title = document.createElement('div');
+        title.className = 'font-semibold text-slate-100';
+        title.textContent = team.name || 'Team';
+        const badge = document.createElement('span');
+        const isMember = crewTeamMemberships.has(team.id);
+        badge.className = 'text-xs px-2 py-1 rounded-full border ' + (isMember ? 'border-emerald-400/40 text-emerald-300' : 'border-white/10 text-slate-400');
+        badge.textContent = isMember ? 'Member' : 'Visitor';
+        header.append(title, badge);
+        wrapper.appendChild(header);
+
+        const metaParts = [];
+        if (team.description) {
+          metaParts.push(team.description);
+        }
+        if (team.airline_name) {
+          metaParts.push(`Airline: ${team.airline_name}`);
+        }
+        if (typeof team.member_count === 'number') {
+          metaParts.push(`${team.member_count} member${team.member_count === 1 ? '' : 's'}`);
+        }
+        const meta = document.createElement('div');
+        meta.className = 'text-xs text-slate-400';
+        meta.textContent = metaParts.join(' • ') || 'Independent crew';
+        wrapper.appendChild(meta);
+
+        if (Array.isArray(team.members) && team.members.length) {
+          const members = document.createElement('div');
+          members.className = 'flex flex-wrap gap-2 text-[11px] text-slate-300';
+          team.members.slice(0, 6).forEach((member) => {
+            const pill = document.createElement('span');
+            pill.className = 'px-2 py-1 rounded-full bg-white/5 border border-white/10';
+            pill.textContent = member.email || 'member';
+            members.appendChild(pill);
+          });
+          if (team.members.length > 6) {
+            const more = document.createElement('span');
+            more.className = 'px-2 py-1 rounded-full bg-white/5 border border-white/10';
+            more.textContent = `+${team.members.length - 6} more`;
+            members.appendChild(more);
+          }
+          wrapper.appendChild(members);
+        }
+
+        const actionRow = document.createElement('div');
+        actionRow.className = 'flex items-center justify-between gap-2 text-xs text-slate-300';
+        const visibility = document.createElement('span');
+        visibility.textContent = team.airline_name ? `Linked airline: ${team.airline_name}` : 'Independent team';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'px-2 py-1 rounded bg-white/10 hover:bg-white/15';
+        if (isMember) {
+          button.textContent = 'Leave team';
+          button.addEventListener('click', () => handleLeaveTeam(team.id));
+        } else {
+          button.textContent = 'Join team';
+          button.addEventListener('click', () => handleJoinTeam(team.id));
+        }
+        actionRow.append(visibility, button);
+        wrapper.appendChild(actionRow);
+
+        teamList.appendChild(wrapper);
+      });
+    }
+
+    function updateAirlineUI() {
+      if (!airlineList || !airlineEmpty || !airlineStatus) {
+        return;
+      }
+
+      airlineList.innerHTML = '';
+
+      if (!currentUser || !currentUser.email) {
+        airlineStatus.textContent = 'Sign in to view virtual airlines.';
+        airlineEmpty.classList.remove('hidden');
+        if (formCreateAirline) {
+          formCreateAirline.classList.add('hidden');
+        }
+        return;
+      }
+
+      const isAdmin = Boolean(currentUser.is_admin);
+      if (formCreateAirline) {
+        formCreateAirline.classList.toggle('hidden', !isAdmin);
+        toggleFormEnabled(formCreateAirline, isAdmin);
+      }
+
+      const sorted = [...crewAirlines].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      if (sorted.length === 0) {
+        airlineStatus.textContent = isAdmin ? 'Create a virtual airline to coordinate complex operations.' : 'Join a team linked to a virtual airline to see it here.';
+        airlineEmpty.classList.remove('hidden');
+      } else {
+        airlineStatus.textContent = 'Virtual airlines connect teams and multi-flight missions.';
+        airlineEmpty.classList.add('hidden');
+      }
+
+      sorted.forEach((airline) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'border border-white/10 rounded-xl p-3 bg-[#0b1020]/60 space-y-2';
+
+        const header = document.createElement('div');
+        header.className = 'flex items-center justify-between gap-2';
+        const title = document.createElement('div');
+        title.className = 'font-semibold text-slate-100';
+        title.textContent = airline.name || 'Virtual airline';
+        const badge = document.createElement('span');
+        const isMember = crewAirlineMemberships.has(airline.id) || Boolean(airline.is_member);
+        badge.className = 'text-xs px-2 py-1 rounded-full border ' + (isMember ? 'border-emerald-400/40 text-emerald-300' : 'border-white/10 text-slate-400');
+        badge.textContent = isMember ? 'Connected' : 'External';
+        header.append(title, badge);
+        wrapper.appendChild(header);
+
+        const description = document.createElement('div');
+        description.className = 'text-xs text-slate-400';
+        description.textContent = airline.description || 'No description provided.';
+        wrapper.appendChild(description);
+
+        if (Array.isArray(airline.teams) && airline.teams.length) {
+          const teamBadges = document.createElement('div');
+          teamBadges.className = 'flex flex-wrap gap-2 text-[11px] text-slate-300';
+          airline.teams.forEach((team) => {
+            const pill = document.createElement('span');
+            pill.className = 'px-2 py-1 rounded-full bg-white/5 border border-white/10';
+            pill.textContent = team.name || 'Team';
+            teamBadges.appendChild(pill);
+          });
+          wrapper.appendChild(teamBadges);
+        }
+
+        airlineList.appendChild(wrapper);
+      });
+    }
+
+    async function loadCrewContext(force = false) {
+      if (!currentUser || !currentUser.email) {
+        resetCrewContext();
+        return;
+      }
+
+      try {
+        const emailParam = encodeURIComponent(currentUser.email.toLowerCase());
+        const [teamData, airlineData] = await Promise.all([
+          apiFetch(`/teams?email=${emailParam}&includeMembers=true`),
+          apiFetch(`/airlines?email=${emailParam}&includeTeams=true`),
+        ]);
+
+        crewTeams = Array.isArray(teamData.teams) ? teamData.teams : [];
+        crewTeamMemberships = new Set((teamData.memberships || []).map((id) => id));
+        crewAirlineMemberships = new Set((teamData.airline_memberships || []).map((id) => id));
+
+        crewAirlines = Array.isArray(airlineData.airlines) ? airlineData.airlines : [];
+        if (Array.isArray(airlineData.memberships)) {
+          airlineData.memberships.forEach((id) => crewAirlineMemberships.add(id));
+        }
+
+        updateTeamUI();
+        updateAirlineUI();
+        populateTeamSelects();
+      } catch (err) {
+        console.error(err);
+        if (teamStatus) {
+          teamStatus.textContent = err instanceof Error ? err.message : 'Unable to load team data.';
+        }
+        if (airlineStatus) {
+          airlineStatus.textContent = err instanceof Error ? err.message : 'Unable to load airline data.';
+        }
+      }
+    }
+
+    async function handleJoinTeam(teamId) {
+      if (!currentUser || !currentUser.email) {
+        toggleAuthSheet(true, 'login');
+        return;
+      }
+      try {
+        if (teamStatus) {
+          teamStatus.textContent = 'Joining team...';
+        }
+        await apiFetch(`/teams/${encodeURIComponent(teamId)}/join`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: currentUser.email.toLowerCase() }),
+        });
+        await loadCrewContext(true);
+        await loadJobs(false);
+        if (teamStatus) {
+          teamStatus.textContent = 'Team joined successfully.';
+        }
+        updateStatusMessage('Team joined successfully.');
+      } catch (err) {
+        console.error(err);
+        if (teamStatus) {
+          teamStatus.textContent = err instanceof Error ? err.message : 'Unable to join team.';
+        }
+      }
+    }
+
+    async function handleLeaveTeam(teamId) {
+      if (!currentUser || !currentUser.email) {
+        toggleAuthSheet(true, 'login');
+        return;
+      }
+      try {
+        if (teamStatus) {
+          teamStatus.textContent = 'Leaving team...';
+        }
+        await apiFetch(`/teams/${encodeURIComponent(teamId)}/leave`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: currentUser.email.toLowerCase() }),
+        });
+        await loadCrewContext(true);
+        await loadJobs(false);
+        if (teamStatus) {
+          teamStatus.textContent = 'Team left successfully.';
+        }
+        updateStatusMessage('Team left successfully.');
+      } catch (err) {
+        console.error(err);
+        if (teamStatus) {
+          teamStatus.textContent = err instanceof Error ? err.message : 'Unable to leave team.';
+        }
+      }
+    }
+
+    function setCurrentUser(user) {
+      currentUser = user || null;
+      if (currentUser) {
+        ls.setItem(USER_KEY, JSON.stringify(currentUser));
+      } else {
+        ls.removeItem(USER_KEY);
+      }
+      updateAccountUI();
+      updateAdminUI();
+      updateRoster();
+      const label = currentUser && currentUser.email ? currentUser.email : 'Guest';
+      if (kpiAccount) {
+        kpiAccount.textContent = label;
+        if (kpiAccount.parentElement) {
+          kpiAccount.parentElement.setAttribute('title', label);
+        }
+      }
+      if (!currentUser) {
+        if (kpiAssigned) {
+          kpiAssigned.textContent = '0';
+        }
+        if (kpiNextDeadline) {
+          kpiNextDeadline.textContent = '—';
+        }
+      }
+      jobsLoaded = false;
+      if (currentUser && currentUser.email) {
+        loadCrewContext(true)
+          .then(() => loadJobs(false))
+          .catch(() => loadJobs(false));
+      } else {
+        resetCrewContext();
+        loadJobs(false);
+      }
+    }
+
+    function loadStoredUser() {
+      let stored = null;
+      try {
+        stored = JSON.parse(ls.getItem(USER_KEY) || 'null');
+      } catch (err) {
+        console.warn('Unable to parse stored user', err);
+      }
+      if (stored && stored.email) {
+        setCurrentUser(stored);
+        return;
+      }
+      setCurrentUser(null);
+    }
+
+    function updateAccountUI() {
+      if (currentUser && currentUser.email) {
+        const initial = currentUser.email.charAt(0).toUpperCase();
+        accountAvatar.textContent = initial;
+        accountLabel.textContent = currentUser.email;
+        accountLabel.classList.remove('text-slate-300');
+        accountLabel.classList.add('text-slate-100');
+      } else {
+        accountAvatar.textContent = '?';
+        accountLabel.textContent = 'Sign in';
+        accountLabel.classList.add('text-slate-300');
+        accountLabel.classList.remove('text-slate-100');
+      }
+    }
+
+    function updateRoster() {
+      if (rosterEmail) {
+        rosterEmail.textContent = currentUser && currentUser.email
+          ? currentUser.email
+          : 'Sign in to personalise your dispatch view.';
+      }
+      if (rosterRole) {
+        if (currentUser && currentUser.is_admin) {
+          rosterRole.textContent = 'Admin & Pilot';
+        } else if (currentUser && currentUser.email) {
+          rosterRole.textContent = 'Pilot';
+        } else {
+          rosterRole.textContent = 'Guest';
+        }
+      }
+      if (rosterSince) {
+        rosterSince.textContent = currentUser && currentUser.created_at
+          ? 'Member since ' + fmtDate(currentUser.created_at)
+          : 'No profile loaded.';
+      }
+    }
+
+    function updateAdminUI() {
+      const isAdmin = Boolean(currentUser && currentUser.is_admin);
+      if (navAdmin) {
+        navAdmin.classList.toggle('hidden', !isAdmin);
+      }
+      if (btnAdminRefresh) {
+        btnAdminRefresh.classList.toggle('hidden', !isAdmin);
+      }
+      if (adminGate) {
+        adminGate.classList.toggle('hidden', isAdmin);
+      }
+      if (adminContent) {
+        adminContent.classList.toggle('hidden', !isAdmin);
+      }
+      if (!isAdmin) {
+        adminLoaded = false;
+        if (adminStatus) {
+          adminStatus.textContent = 'Sign in with an administrator account to continue.';
+        }
+      } else if (adminStatus && !adminLoaded) {
+        adminStatus.textContent = 'Admin tools ready. Refresh to load data.';
+      }
+    }
+
+    function toggleAuthSheet(show, defaultTab = 'login') {
+      authSheet.classList.toggle('hidden', !show);
+      if (show) {
+        document.body.classList.add('overflow-hidden');
+        switchAuthTab(defaultTab);
+        if (!currentUser) {
+          authTitle.textContent = defaultTab === 'register' ? 'Create your SimuNet account' : 'Welcome back';
+          authSubtitle.textContent = 'Claim missions, track assignments, and sync with SimuNet dispatch.';
+        } else {
+          authTitle.textContent = 'Account';
+          authSubtitle.textContent = 'You are signed in with ' + currentUser.email + '.';
+        }
+      } else {
+        document.body.classList.remove('overflow-hidden');
+      }
+    }
+
+    function switchAuthTab(tab) {
+      authTabs.forEach((btn) => {
+        const active = btn.dataset.authTab === tab;
+        btn.classList.toggle('bg-white/10', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('bg-white/5', !active);
+        btn.classList.toggle('text-slate-300', !active);
+      });
+
+      const showForms = !currentUser;
+      formLogin.classList.toggle('hidden', tab !== 'login' || !showForms);
+      formRegister.classList.toggle('hidden', tab !== 'register' || !showForms);
+      authAccountSummary.classList.toggle('hidden', !!showForms || !currentUser);
+      btnLogout.classList.toggle('hidden', !currentUser);
+
+      if (currentUser) {
+        summaryEmail.textContent = currentUser.email;
+        summaryCreated.textContent = currentUser.created_at ? 'Joined ' + fmtDate(currentUser.created_at) : '';
+      }
+
+      authError.classList.add('hidden');
+      authSuccess.classList.add('hidden');
+    }
+
+    accountButton.addEventListener('click', () => {
+      toggleAuthSheet(true, currentUser ? 'login' : 'login');
     });
 
-    document.getElementById('btnPing').click();
+    btnAuthClose.addEventListener('click', () => toggleAuthSheet(false));
+
+    authTabs.forEach((btn) => {
+      btn.addEventListener('click', () => switchAuthTab(btn.dataset.authTab || 'login'));
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !authSheet.classList.contains('hidden')) {
+        toggleAuthSheet(false);
+      }
+    });
+
+    btnLogout.addEventListener('click', () => {
+      setCurrentUser(null);
+      toggleAuthSheet(false);
+      updateStatusMessage('Signed out.');
+    });
+
+    async function handleAuthSubmit(type, email, password) {
+      if (!email || !password) {
+        authError.textContent = 'Email and password required.';
+        authError.classList.remove('hidden');
+        return;
+      }
+      authError.classList.add('hidden');
+      authSuccess.classList.add('hidden');
+      const path = type === 'register' ? '/auth/register' : '/auth/login';
+      try {
+        const res = await apiFetch(path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        if (res && res.user) {
+          setCurrentUser(res.user);
+          authSuccess.textContent = type === 'register' ? 'Account created! You are now signed in.' : 'Signed in successfully.';
+          authSuccess.classList.remove('hidden');
+          summaryEmail.textContent = res.user.email;
+          summaryCreated.textContent = res.user.created_at ? 'Joined ' + fmtDate(res.user.created_at) : '';
+          switchAuthTab('login');
+          toggleAuthSheet(false);
+          updateStatusMessage(`Signed in as ${res.user.email}.`);
+        }
+      } catch (err) {
+        authError.textContent = (err && err.message) ? err.message : 'Unable to complete request.';
+        authError.classList.remove('hidden');
+      }
+    }
+
+    formLogin.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      handleAuthSubmit('login', loginEmail.value.trim().toLowerCase(), loginPassword.value);
+    });
+
+    formRegister.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      handleAuthSubmit('register', registerEmail.value.trim().toLowerCase(), registerPassword.value);
+    });
+
+    if (formCreateTeam) {
+      formCreateTeam.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!currentUser || !currentUser.email) {
+          if (teamStatus) {
+            teamStatus.textContent = 'Sign in to create teams.';
+          }
+          toggleAuthSheet(true, 'login');
+          return;
+        }
+        const name = teamName ? teamName.value.trim() : '';
+        const description = teamDescription ? teamDescription.value.trim() : '';
+        const airlineValue = teamAirline && teamAirline.value ? teamAirline.value : '';
+        if (!name) {
+          if (teamStatus) {
+            teamStatus.textContent = 'Team name is required.';
+          }
+          return;
+        }
+        try {
+          if (teamStatus) {
+            teamStatus.textContent = 'Creating team...';
+          }
+          await apiFetch('/teams', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name,
+              description: description || null,
+              created_by: currentUser.email.toLowerCase(),
+              airline_id: airlineValue || null,
+            }),
+          });
+          formCreateTeam.reset();
+          await loadCrewContext(true);
+          await loadJobs(false);
+          if (teamStatus) {
+            teamStatus.textContent = 'Team created successfully.';
+          }
+          updateStatusMessage(`Team ${name} created.`);
+        } catch (err) {
+          console.error(err);
+          if (teamStatus) {
+            teamStatus.textContent = err instanceof Error ? err.message : 'Unable to create team.';
+          }
+        }
+      });
+    }
+
+    if (formCreateAirline) {
+      formCreateAirline.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!currentUser || !currentUser.email || !currentUser.is_admin) {
+          if (airlineStatus) {
+            airlineStatus.textContent = 'Admin access required to create a virtual airline.';
+          }
+          toggleAuthSheet(true, 'login');
+          return;
+        }
+        const name = airlineName ? airlineName.value.trim() : '';
+        const description = airlineDescription ? airlineDescription.value.trim() : '';
+        if (!name) {
+          if (airlineStatus) {
+            airlineStatus.textContent = 'Airline name is required.';
+          }
+          return;
+        }
+        try {
+          if (airlineStatus) {
+            airlineStatus.textContent = 'Creating virtual airline...';
+          }
+          await apiFetch('/airlines', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name,
+              description: description || null,
+              created_by: currentUser.email.toLowerCase(),
+            }),
+          });
+          formCreateAirline.reset();
+          await loadCrewContext(true);
+          await loadJobs(false);
+          if (airlineStatus) {
+            airlineStatus.textContent = 'Virtual airline created.';
+          }
+          updateStatusMessage(`Virtual airline ${name} created.`);
+        } catch (err) {
+          console.error(err);
+          if (airlineStatus) {
+            airlineStatus.textContent = err instanceof Error ? err.message : 'Unable to create virtual airline.';
+          }
+        }
+      });
+    }
+
+    async function checkStatus(updateMessage = true) {
+      setBadge(apiStatus, 'api: checking...', 'border-white/10 text-slate-400');
+      try {
+        const s = await apiFetch('/status');
+        const storage = s && typeof s === 'object' && s.storage ? String(s.storage) : null;
+        const usingDb = Boolean(s && s.db);
+        if (usingDb) {
+          setBadge(dbStatus, 'database: online', 'border-emerald-400/40 text-emerald-300');
+        } else if (storage === 'json') {
+          setBadge(dbStatus, 'storage: synced', 'border-sky-400/40 text-sky-200');
+        } else {
+          setBadge(dbStatus, 'storage: standby', 'border-amber-400/40 text-amber-300');
+        }
+        setBadge(apiStatus, 'api: reachable', 'border-emerald-400/40 text-emerald-300');
+        if (updateMessage) {
+          if (usingDb) {
+            updateStatusMessage('API ready.');
+          } else {
+            updateStatusMessage('API ready (JSON storage mode).');
+          }
+        }
+      } catch (e) {
+        console.error(e);
+        setBadge(dbStatus, 'storage: unavailable', 'border-rose-400/40 text-rose-300');
+        setBadge(apiStatus, 'api: unreachable', 'border-rose-400/40 text-rose-300');
+        if (updateMessage) {
+          updateStatusMessage('API not reachable.');
+        }
+      }
+    }
+
+    async function loadJobs(updateStatus = true) {
+      if (!jobsAvailable || !jobsAvailableEmpty || !jobsMine || !jobsMineEmpty) {
+        return;
+      }
+
+      const signedIn = Boolean(currentUser && currentUser.email);
+
+      if (jobsMeta) {
+        jobsMeta.textContent = 'Loading jobs…';
+      }
+
+      try {
+        const email = signedIn ? currentUser.email.toLowerCase() : null;
+        const path = email ? `/jobs?email=${encodeURIComponent(email)}` : '/jobs';
+        const res = await apiFetch(path);
+        const available = Array.isArray(res.available) ? res.available : Array.isArray(res.jobs) ? res.jobs : [];
+        const mine = signedIn ? (Array.isArray(res.mine) ? res.mine : []) : [];
+        renderJobs(available, mine);
+        jobsLoaded = true;
+        if (updateStatus) {
+          const parts = [`${available.length} available`];
+          if (signedIn) {
+            parts.push(`${mine.length} mine`);
+          }
+          updateStatusMessage(`Jobs refreshed (${parts.join(' • ')}).`);
+        }
+      } catch (err) {
+        console.error(err);
+        jobsLoaded = false;
+        if (jobsMeta) {
+          jobsMeta.textContent = 'Jobs unavailable';
+        }
+        if (jobsAvailable) {
+          jobsAvailable.innerHTML = '';
+        }
+        if (jobsMine) {
+          jobsMine.innerHTML = '';
+        }
+        if (jobsAvailableEmpty) {
+          jobsAvailableEmpty.textContent = 'Jobs unavailable.';
+          jobsAvailableEmpty.classList.remove('hidden');
+        }
+        if (jobsMineEmpty) {
+          jobsMineEmpty.textContent = signedIn ? 'Jobs unavailable.' : 'Sign in to track claimed jobs.';
+          jobsMineEmpty.classList.remove('hidden');
+        }
+        if (briefingContainer) {
+          briefingContainer.innerHTML = '';
+        }
+        if (briefingEmpty) {
+          briefingEmpty.classList.remove('hidden');
+        }
+        if (highlightAvailable) {
+          highlightAvailable.innerHTML = '';
+        }
+        if (highlightMine) {
+          highlightMine.innerHTML = '';
+        }
+        if (highlightAvailableEmpty) {
+          highlightAvailableEmpty.textContent = 'Jobs unavailable.';
+          highlightAvailableEmpty.classList.remove('hidden');
+        }
+        if (highlightMineEmpty) {
+          highlightMineEmpty.textContent = signedIn ? 'Jobs unavailable.' : 'Sign in to view your hangar.';
+          highlightMineEmpty.classList.remove('hidden');
+        }
+        if (kpiAssigned) {
+          kpiAssigned.textContent = '0';
+        }
+        if (kpiAvailable) {
+          kpiAvailable.textContent = '0';
+        }
+        if (kpiNextDeadline) {
+          kpiNextDeadline.textContent = '—';
+        }
+        if (kpiLastUpdate) {
+          kpiLastUpdate.textContent = '—';
+        }
+        if (updateStatus) {
+          updateStatusMessage(err instanceof Error ? err.message : 'Unable to load jobs.');
+        }
+      }
+    }
+
+    async function loadAdminOverview(force = false) {
+      if (!currentUser || !currentUser.email || !currentUser.is_admin) {
+        return;
+      }
+      if (adminLoaded && !force) {
+        return;
+      }
+
+      if (adminStatus) {
+        adminStatus.textContent = 'Loading admin data…';
+      }
+
+      const actor = encodeURIComponent(currentUser.email.toLowerCase());
+      try {
+        const [jobsRes, usersRes] = await Promise.all([
+          apiFetch(`/admin/jobs?actor=${actor}`),
+          apiFetch(`/admin/users?actor=${actor}`),
+        ]);
+        const jobsList = jobsRes && Array.isArray(jobsRes.jobs) ? jobsRes.jobs : [];
+        const usersList = usersRes && Array.isArray(usersRes.users) ? usersRes.users : [];
+        renderAdminJobs(jobsList);
+        renderAdminUsers(usersList);
+        adminLoaded = true;
+        if (adminStatus) {
+          adminStatus.textContent = 'Admin data updated ' + new Date().toLocaleTimeString();
+        }
+      } catch (err) {
+        console.error(err);
+        adminLoaded = false;
+        if (adminStatus) {
+          adminStatus.textContent = err instanceof Error ? err.message : 'Unable to load admin data.';
+        }
+      }
+    }
+
+    function renderJobs(availableJobs, myJobs) {
+      const signedIn = Boolean(currentUser && currentUser.email);
+      renderJobCollection(jobsAvailable, jobsAvailableEmpty, availableJobs, { allowClaim: true, signedIn, mineList: false });
+      renderJobCollection(jobsMine, jobsMineEmpty, signedIn ? myJobs : [], { allowClaim: false, signedIn, mineList: true });
+
+      if (jobsMeta) {
+        const stamp = new Date().toLocaleTimeString();
+        const parts = [`${availableJobs.length} available`];
+        if (signedIn) {
+          parts.push(`${myJobs.length} mine`);
+        }
+        jobsMeta.textContent = `${parts.join(' • ')} • updated ${stamp}`;
+      }
+
+      updateDashboardInsights(availableJobs, signedIn ? myJobs : []);
+    }
+
+    function renderJobCollection(container, emptyEl, jobs, { allowClaim, signedIn, mineList }) {
+      if (!container || !emptyEl) {
+        return;
+      }
+
+      container.innerHTML = '';
+      const hasJobs = Array.isArray(jobs) && jobs.length > 0;
+
+      if (!hasJobs) {
+        if (mineList) {
+          emptyEl.textContent = signedIn ? 'You have not claimed any jobs yet.' : 'Sign in to track claimed jobs.';
+        } else {
+          emptyEl.textContent = 'No jobs available yet. Create one or ask SimuNet to auto-generate missions.';
+        }
+        emptyEl.classList.remove('hidden');
+        return;
+      }
+
+      emptyEl.classList.add('hidden');
+      jobs.forEach((job) => {
+        container.appendChild(buildJobCard(job, { allowClaim, signedIn }));
+      });
+    }
+
+    function updateDashboardInsights(availableJobs, myJobs) {
+      const availableCount = Array.isArray(availableJobs) ? availableJobs.length : 0;
+      const mineCount = Array.isArray(myJobs) ? myJobs.length : 0;
+
+      if (kpiAssigned) {
+        kpiAssigned.textContent = String(mineCount);
+      }
+      if (kpiAvailable) {
+        kpiAvailable.textContent = String(availableCount);
+      }
+      if (kpiLastUpdate) {
+        kpiLastUpdate.textContent = new Date().toLocaleTimeString();
+      }
+
+      if (kpiNextDeadline) {
+        let nextDeadline = null;
+        if (mineCount > 0) {
+          const deadlines = myJobs
+            .map((job) => {
+              const value = job && job.deadline ? new Date(job.deadline) : null;
+              return value && !Number.isNaN(value.getTime()) ? value : null;
+            })
+            .filter(Boolean);
+          if (deadlines.length > 0) {
+            deadlines.sort((a, b) => a.getTime() - b.getTime());
+            nextDeadline = deadlines[0];
+          }
+        }
+        kpiNextDeadline.textContent = nextDeadline ? fmtDate(nextDeadline) : '—';
+      }
+
+      renderBriefing(myJobs);
+      renderHighlights(highlightAvailable, highlightAvailableEmpty, availableJobs, {
+        allowClaim: true,
+        signedIn: Boolean(currentUser && currentUser.email),
+        limit: 3,
+        mineList: false,
+      });
+      renderHighlights(highlightMine, highlightMineEmpty, myJobs, {
+        allowClaim: false,
+        signedIn: Boolean(currentUser && currentUser.email),
+        limit: 3,
+        mineList: true,
+      });
+    }
+
+    function renderBriefing(myJobs) {
+      if (!briefingContainer || !briefingEmpty) {
+        return;
+      }
+      briefingContainer.innerHTML = '';
+      const hasJobs = Array.isArray(myJobs) && myJobs.length > 0;
+      if (!hasJobs) {
+        briefingEmpty.classList.remove('hidden');
+        return;
+      }
+      briefingEmpty.classList.add('hidden');
+      const sorted = [...myJobs].sort((a, b) => {
+        const aTime = a && a.deadline ? new Date(a.deadline).getTime() : Number.POSITIVE_INFINITY;
+        const bTime = b && b.deadline ? new Date(b.deadline).getTime() : Number.POSITIVE_INFINITY;
+        return aTime - bTime;
+      });
+      const nextJob = sorted[0];
+      if (nextJob) {
+        briefingContainer.appendChild(buildBriefingCard(nextJob));
+      }
+    }
+
+    function buildBriefingCard(job) {
+      const card = document.createElement('div');
+      card.className = 'rounded-xl border border-white/10 bg-[#0b1020]/70 p-4 space-y-3';
+
+      const header = document.createElement('div');
+      header.className = 'flex items-center justify-between gap-2';
+      const title = document.createElement('div');
+      title.className = 'text-lg font-semibold text-slate-100';
+      title.textContent = job.title || 'Flight assignment';
+      const platform = document.createElement('span');
+      platform.className = 'text-xs uppercase tracking-wide text-indigo-300/80';
+      platform.textContent = job.platform || 'Microsoft Flight Simulator';
+      header.append(title, platform);
+
+      const { departure, arrival, legs } = getRouteDetails(job);
+
+      const route = document.createElement('div');
+      route.className = 'text-sm text-slate-300';
+      route.innerHTML = '<span class="text-slate-400">Route:</span> ' +
+        escapeHtml(departure) + ' → ' + escapeHtml(arrival);
+
+      const legSummary = createLegSummaryElement(legs);
+      if (legSummary) {
+        legSummary.textContent = 'Flight plan: ' + legSummary.textContent;
+      }
+
+      const payload = document.createElement('div');
+      payload.className = 'text-sm text-slate-300';
+      const numericWeight = Number(job.weight_lbs);
+      const weight = Number.isFinite(numericWeight) && numericWeight > 0 ? `${numericWeight.toLocaleString()} lbs` : 'N/A';
+      payload.innerHTML = '<span class="text-slate-400">Payload:</span> ' + escapeHtml(job.payload || '—') +
+        ' • ' + weight;
+
+      const deadline = document.createElement('div');
+      deadline.className = 'text-sm text-slate-300';
+      deadline.innerHTML = '<span class="text-slate-400">Deadline:</span> ' + fmtDate(job.deadline);
+
+      card.append(header, route);
+      if (legSummary) {
+        card.appendChild(legSummary);
+      }
+      card.append(payload, deadline);
+
+      const affiliation = createAffiliationBadges(job);
+      if (affiliation) {
+        affiliation.classList.add('mt-1');
+        card.appendChild(affiliation);
+      }
+
+      if (job.notes) {
+        const notes = document.createElement('div');
+        notes.className = 'text-xs text-slate-400 bg-white/5 border border-white/10 rounded-lg p-3';
+        notes.textContent = job.notes;
+        card.appendChild(notes);
+      }
+
+      return card;
+    }
+
+    function renderHighlights(container, emptyEl, jobs, { allowClaim, signedIn, limit, mineList }) {
+      if (!container || !emptyEl) {
+        return;
+      }
+      container.innerHTML = '';
+      const list = Array.isArray(jobs) ? [...jobs] : [];
+      if (!list.length) {
+        if (mineList && !signedIn) {
+          emptyEl.textContent = 'Sign in to view your hangar.';
+        } else if (!mineList) {
+          emptyEl.textContent = 'All clear — no unclaimed missions right now.';
+        }
+        emptyEl.classList.remove('hidden');
+        return;
+      }
+      emptyEl.classList.add('hidden');
+      list
+        .sort((a, b) => {
+          const aTime = a && a.deadline ? new Date(a.deadline).getTime() : Number.POSITIVE_INFINITY;
+          const bTime = b && b.deadline ? new Date(b.deadline).getTime() : Number.POSITIVE_INFINITY;
+          return aTime - bTime;
+        })
+        .slice(0, limit || 3)
+        .forEach((job) => {
+          container.appendChild(buildJobSummary(job, { allowClaim, signedIn, mineList }));
+        });
+    }
+
+    function buildJobSummary(job, { allowClaim, signedIn, mineList }) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'rounded-xl border border-white/10 bg-[#0b1020]/60 p-4 space-y-2';
+
+      const header = document.createElement('div');
+      header.className = 'flex items-center justify-between gap-2';
+      const title = document.createElement('div');
+      title.className = 'font-semibold text-slate-100';
+      title.textContent = job.title || 'Flight assignment';
+      const deadline = document.createElement('span');
+      deadline.className = 'text-xs text-slate-400';
+      deadline.textContent = job.deadline ? fmtDate(job.deadline) : 'No deadline';
+      header.append(title, deadline);
+
+      const { departure, arrival, legs } = getRouteDetails(job);
+
+      const route = document.createElement('div');
+      route.className = 'text-sm text-slate-300';
+      route.textContent = `${departure} → ${arrival}`;
+
+      const payload = document.createElement('div');
+      payload.className = 'text-xs text-slate-400';
+      const numericWeight = Number(job.weight_lbs);
+      const weight = Number.isFinite(numericWeight) && numericWeight > 0 ? `${numericWeight.toLocaleString()} lbs` : 'N/A';
+      payload.textContent = `${job.payload || '—'} • ${weight}`;
+
+      wrapper.append(header, route, payload);
+
+      const legSummary = createLegSummaryElement(legs);
+      if (legSummary) {
+        wrapper.appendChild(legSummary);
+      }
+
+      const affiliation = createAffiliationBadges(job);
+      if (affiliation) {
+        affiliation.classList.add('mt-1');
+        wrapper.appendChild(affiliation);
+      }
+
+      const footer = document.createElement('div');
+      footer.className = 'flex items-center gap-2 text-xs text-slate-400';
+      const createdBy = job.created_by ? `Created by ${job.created_by}` : 'SimuNet dispatch';
+      footer.appendChild(document.createTextNode(createdBy));
+
+      if (allowClaim) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'ml-auto px-3 py-2 rounded-lg grad text-xs font-medium';
+        if (signedIn) {
+          button.textContent = 'Claim mission';
+          button.addEventListener('click', () => handleClaim(job.job_id));
+        } else {
+          button.textContent = 'Sign in to claim';
+          button.classList.add('opacity-60');
+          button.addEventListener('click', () => toggleAuthSheet(true, 'login'));
+        }
+        footer.appendChild(button);
+      } else if (mineList) {
+        const status = document.createElement('span');
+        status.className = 'ml-auto text-xs text-emerald-300';
+        status.textContent = 'Assigned to you';
+        footer.appendChild(status);
+      }
+
+      wrapper.appendChild(footer);
+      return wrapper;
+    }
+
+    function renderAdminJobs(jobs) {
+      if (!adminJobsBody || !adminJobsEmpty) {
+        return;
+      }
+      adminJobsBody.innerHTML = '';
+      const list = Array.isArray(jobs) ? jobs : [];
+      if (!list.length) {
+        adminJobsEmpty.classList.remove('hidden');
+        return;
+      }
+      adminJobsEmpty.classList.add('hidden');
+      list.forEach((job) => {
+        const jobId = job && job.job_id ? String(job.job_id) : '';
+        const row = document.createElement('tr');
+        row.className = 'border-b border-white/5 last:border-0';
+
+        const missionCell = document.createElement('td');
+        missionCell.className = 'py-2 align-top space-y-1';
+        const missionTitle = document.createElement('div');
+        missionTitle.className = 'font-medium text-slate-100';
+        missionTitle.textContent = job && job.title ? job.title : (jobId || 'Mission');
+        missionCell.appendChild(missionTitle);
+
+        const routeInfo = getRouteDetails(job || {});
+        const routeLine = document.createElement('div');
+        routeLine.className = 'text-xs text-slate-400';
+        routeLine.textContent = summarizeRoute(job || {});
+        missionCell.appendChild(routeLine);
+
+        const legSummary = createLegSummaryElement(routeInfo.legs);
+        if (legSummary) {
+          missionCell.appendChild(legSummary);
+        }
+
+        const missionAffiliation = createAffiliationBadges(job || {});
+        if (missionAffiliation) {
+          missionAffiliation.classList.add('mt-1');
+          missionCell.appendChild(missionAffiliation);
+        }
+
+        const creatorCell = document.createElement('td');
+        creatorCell.className = 'py-2 text-slate-400';
+        creatorCell.textContent = job && job.created_by ? job.created_by : 'SimuNet Ops';
+
+        const assignedCell = document.createElement('td');
+        assignedCell.className = 'py-2 text-slate-400';
+        assignedCell.textContent = job && job.assigned_to ? job.assigned_to : '—';
+
+        const visibilityCell = document.createElement('td');
+        visibilityCell.className = 'py-2 text-slate-400';
+        const visibilityParts = [];
+        if (job && job.team_name) {
+          visibilityParts.push(`Team: ${job.team_name}`);
+        }
+        if (job && job.airline_name) {
+          visibilityParts.push(`Airline: ${job.airline_name}`);
+        }
+        visibilityCell.textContent = visibilityParts.length ? visibilityParts.join(' • ') : 'Open';
+
+        const deadlineCell = document.createElement('td');
+        deadlineCell.className = 'py-2 text-slate-400';
+        deadlineCell.textContent = job && job.deadline ? fmtDate(job.deadline) : '—';
+
+        const actionsCell = document.createElement('td');
+        actionsCell.className = 'py-2 text-right';
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'px-2 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-xs text-red-200';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.addEventListener('click', () => handleAdminDeleteJob(jobId, job && job.title ? job.title : jobId));
+        actionsCell.appendChild(deleteBtn);
+
+        row.append(missionCell, creatorCell, assignedCell, visibilityCell, deadlineCell, actionsCell);
+        adminJobsBody.appendChild(row);
+      });
+    }
+
+    function renderAdminUsers(users) {
+      if (!adminUsersBody || !adminUsersEmpty) {
+        return;
+      }
+      adminUsersBody.innerHTML = '';
+      const list = Array.isArray(users) ? users : [];
+      if (!list.length) {
+        adminUsersEmpty.classList.remove('hidden');
+        return;
+      }
+      adminUsersEmpty.classList.add('hidden');
+      list.forEach((user) => {
+        const email = user && user.email ? String(user.email) : '';
+        const isAdmin = Boolean(user && user.is_admin);
+        const createdText = user && user.created_at ? fmtDate(user.created_at) : '—';
+        const row = document.createElement('tr');
+        row.className = 'border-b border-white/5 last:border-0';
+        row.innerHTML = `
+          <td class="py-2 font-medium text-slate-100">${escapeHtml(email || '—')}</td>
+          <td class="py-2 text-slate-300">${isAdmin ? 'Admin' : 'User'}</td>
+          <td class="py-2 text-slate-400">${escapeHtml(createdText)}</td>
+          <td class="py-2">
+            <div class="flex flex-wrap justify-end gap-2">
+              <button class="px-2 py-1 rounded bg-white/10 hover:bg-white/15 text-xs" type="button" data-action="toggle">${isAdmin ? 'Revoke admin' : 'Make admin'}</button>
+              <button class="px-2 py-1 rounded bg-white/10 hover:bg-white/15 text-xs" type="button" data-action="reset">Reset password</button>
+              <button class="px-2 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-xs text-red-200" type="button" data-action="delete">Delete</button>
+            </div>
+          </td>`;
+        const toggleBtn = row.querySelector('[data-action="toggle"]');
+        if (toggleBtn) {
+          toggleBtn.addEventListener('click', () => handleAdminToggleUser(email, !isAdmin));
+        }
+        const resetBtn = row.querySelector('[data-action="reset"]');
+        if (resetBtn) {
+          resetBtn.addEventListener('click', () => handleAdminResetPassword(email));
+        }
+        const deleteBtn = row.querySelector('[data-action="delete"]');
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', () => handleAdminDeleteUser(email));
+        }
+        adminUsersBody.appendChild(row);
+      });
+    }
+
+    function buildJobCard(job, { allowClaim, signedIn }) {
+      const card = document.createElement('div');
+      card.className = 'border border-white/10 rounded-xl p-4 bg-[#0b1020]/60';
+
+      const header = document.createElement('div');
+      header.className = 'flex items-start justify-between gap-3';
+
+      const heading = document.createElement('div');
+      const titleEl = document.createElement('div');
+      titleEl.className = 'font-semibold text-slate-100';
+      titleEl.textContent = job.title || job.job_id || 'Flight job';
+      const platformEl = document.createElement('div');
+      platformEl.className = 'text-xs uppercase tracking-wide text-indigo-300/70 mt-1';
+      platformEl.textContent = job.platform || 'Microsoft Flight Simulator';
+      heading.append(titleEl, platformEl);
+
+      const statusEl = document.createElement('div');
+      statusEl.className = 'text-xs uppercase tracking-wide text-slate-400';
+      statusEl.textContent = job.status || (job.assigned_to ? 'claimed' : 'open');
+
+      header.append(heading, statusEl);
+
+      const { departure, arrival, legs } = getRouteDetails(job || {});
+
+      const grid = document.createElement('div');
+      grid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-slate-300 mt-4';
+
+      const routeBlock = document.createElement('div');
+      routeBlock.className = 'sm:col-span-2';
+      const routeLabel = document.createElement('div');
+      routeLabel.className = 'text-xs text-slate-400 uppercase tracking-wide';
+      routeLabel.textContent = 'Flight plan';
+      const routeValue = document.createElement('div');
+      routeValue.className = 'font-medium text-slate-100';
+      routeValue.textContent = `${departure} → ${arrival}`;
+      routeBlock.append(routeLabel, routeValue);
+      const legSummary = createLegSummaryElement(legs);
+      if (legSummary) {
+        routeBlock.appendChild(legSummary);
+      }
+
+      const deadlineBlock = document.createElement('div');
+      const deadlineLabel = document.createElement('div');
+      deadlineLabel.className = 'text-xs text-slate-400 uppercase tracking-wide';
+      deadlineLabel.textContent = 'Deadline';
+      const deadlineValue = document.createElement('div');
+      deadlineValue.className = 'font-medium text-slate-100';
+      deadlineValue.textContent = job.deadline ? fmtDate(job.deadline) : 'No deadline';
+      deadlineBlock.append(deadlineLabel, deadlineValue);
+
+      const payloadBlock = document.createElement('div');
+      const payloadLabel = document.createElement('div');
+      payloadLabel.className = 'text-xs text-slate-400 uppercase tracking-wide';
+      payloadLabel.textContent = 'Payload';
+      const payloadValue = document.createElement('div');
+      payloadValue.className = 'font-medium text-slate-100';
+      payloadValue.textContent = job.payload || '—';
+      payloadBlock.append(payloadLabel, payloadValue);
+
+      const weightBlock = document.createElement('div');
+      const weightLabel = document.createElement('div');
+      weightLabel.className = 'text-xs text-slate-400 uppercase tracking-wide';
+      weightLabel.textContent = 'Weight';
+      const weightValue = document.createElement('div');
+      weightValue.className = 'font-medium text-slate-100';
+      if (typeof job.weight_lbs === 'number') {
+        weightValue.textContent = `${Number(job.weight_lbs).toLocaleString(undefined, { maximumFractionDigits: 1 })} lbs`;
+      } else {
+        weightValue.textContent = '—';
+      }
+      weightBlock.append(weightLabel, weightValue);
+
+      const createdBlock = document.createElement('div');
+      const createdLabel = document.createElement('div');
+      createdLabel.className = 'text-xs text-slate-400 uppercase tracking-wide';
+      createdLabel.textContent = 'Created';
+      const createdValue = document.createElement('div');
+      createdValue.className = 'font-medium text-slate-100';
+      createdValue.textContent = job.created_at ? fmtDate(job.created_at) : '—';
+      createdBlock.append(createdLabel, createdValue);
+
+      grid.append(routeBlock, deadlineBlock, payloadBlock, weightBlock, createdBlock);
+
+      const affiliation = createAffiliationBadges(job || {});
+      if (affiliation) {
+        affiliation.classList.add('mt-3');
+      }
+
+      const footer = document.createElement('div');
+      footer.className = 'mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 flex-wrap text-xs text-slate-400';
+
+      const createdByRaw = job.created_by ? job.created_by.toString() : '';
+      const createdByLabel = createdByRaw && createdByRaw.toLowerCase() === 'ops@simunet.local'
+        ? 'SimuNet Ops'
+        : (createdByRaw || 'SimuNet Ops');
+      const createdEl = document.createElement('div');
+      createdEl.textContent = `Created by ${createdByLabel}`;
+      footer.appendChild(createdEl);
+
+      if (job.assigned_to) {
+        const assignedEl = document.createElement('div');
+        assignedEl.textContent = `Assigned to ${job.assigned_to}`;
+        footer.appendChild(assignedEl);
+      }
+
+      if (allowClaim) {
+        const claimBtn = document.createElement('button');
+        claimBtn.type = 'button';
+        if (signedIn) {
+          claimBtn.className = 'sm:ml-auto px-3 py-2 rounded-lg grad text-sm font-medium';
+          claimBtn.textContent = 'Claim job';
+          claimBtn.addEventListener('click', () => handleClaim(job.job_id));
+        } else {
+          claimBtn.className = 'sm:ml-auto px-3 py-2 rounded-lg bg-white/10 text-sm text-slate-300 cursor-not-allowed';
+          claimBtn.textContent = 'Sign in to claim';
+          claimBtn.disabled = true;
+        }
+        footer.appendChild(claimBtn);
+      }
+
+      card.append(header, grid);
+      if (affiliation) {
+        card.appendChild(affiliation);
+      }
+      if (job.notes) {
+        const notesEl = document.createElement('p');
+        notesEl.className = 'mt-3 text-xs text-slate-400 leading-relaxed';
+        notesEl.innerHTML = `<span class="uppercase tracking-wide text-slate-500 mr-2">Notes</span>${escapeHtml(job.notes).replace(/\n/g, '<br>')}`;
+        card.appendChild(notesEl);
+      }
+      card.appendChild(footer);
+      return card;
+    }
+
+    async function handleClaim(jobId) {
+      if (!jobId) {
+        return;
+      }
+      if (!currentUser || !currentUser.email) {
+        updateStatusMessage('Sign in to claim jobs.');
+        toggleAuthSheet(true, 'login');
+        return;
+      }
+      updateStatusMessage('Claiming job...');
+      try {
+        await apiFetch(`/jobs/${encodeURIComponent(jobId)}/claim`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: currentUser.email.toLowerCase() }),
+        });
+        await loadJobs(true);
+        updateStatusMessage('Job claimed.');
+      } catch (err) {
+        console.error(err);
+        updateStatusMessage(err instanceof Error ? err.message : 'Unable to claim job.');
+      }
+    }
+
+    async function handleAdminDeleteJob(jobId, label) {
+      if (!jobId || !currentUser || !currentUser.email || !currentUser.is_admin) {
+        return;
+      }
+      const promptLabel = label ? `Delete job "${label}"?` : 'Delete this job?';
+      if (!window.confirm(promptLabel)) {
+        return;
+      }
+      const actor = encodeURIComponent(currentUser.email.toLowerCase());
+      try {
+        await apiFetch(`/admin/jobs/${encodeURIComponent(jobId)}?actor=${actor}`, { method: 'DELETE' });
+        if (adminStatus) {
+          adminStatus.textContent = 'Job removed.';
+        }
+        await Promise.all([loadAdminOverview(true), loadJobs(true)]);
+      } catch (err) {
+        console.error(err);
+        if (adminStatus) {
+          adminStatus.textContent = err instanceof Error ? err.message : 'Unable to remove job.';
+        }
+      }
+    }
+
+    async function handleAdminToggleUser(email, makeAdmin) {
+      if (!email || !currentUser || !currentUser.email || !currentUser.is_admin) {
+        return;
+      }
+      const actor = encodeURIComponent(currentUser.email.toLowerCase());
+      try {
+        const response = await apiFetch(`/admin/users/${encodeURIComponent(email)}?actor=${actor}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_admin: makeAdmin }),
+        });
+        if (adminStatus) {
+          adminStatus.textContent = makeAdmin
+            ? `Granted admin privileges to ${email}.`
+            : `Revoked admin privileges from ${email}.`;
+        }
+        if (response && response.user && currentUser.email && currentUser.email.toLowerCase() === email.toLowerCase()) {
+          setCurrentUser({ ...currentUser, ...response.user });
+        }
+        await loadAdminOverview(true);
+      } catch (err) {
+        console.error(err);
+        if (adminStatus) {
+          adminStatus.textContent = err instanceof Error ? err.message : 'Unable to update user.';
+        }
+      }
+    }
+
+    async function handleAdminResetPassword(email) {
+      if (!email || !currentUser || !currentUser.email || !currentUser.is_admin) {
+        return;
+      }
+      const nextPassword = window.prompt(`Enter a new password for ${email} (min. 8 characters)`);
+      if (nextPassword === null) {
+        return;
+      }
+      const trimmed = nextPassword.trim();
+      if (trimmed.length < 8) {
+        window.alert('Password must be at least 8 characters long.');
+        return;
+      }
+      const actor = encodeURIComponent(currentUser.email.toLowerCase());
+      try {
+        await apiFetch(`/admin/users/${encodeURIComponent(email)}?actor=${actor}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: trimmed }),
+        });
+        if (adminStatus) {
+          adminStatus.textContent = `Password reset for ${email}.`;
+        }
+      } catch (err) {
+        console.error(err);
+        if (adminStatus) {
+          adminStatus.textContent = err instanceof Error ? err.message : 'Unable to reset password.';
+        }
+      }
+    }
+
+    async function handleAdminDeleteUser(email) {
+      if (!email || !currentUser || !currentUser.email || !currentUser.is_admin) {
+        return;
+      }
+      if (!window.confirm(`Remove ${email}? Any claimed jobs will be released.`)) {
+        return;
+      }
+      const actor = encodeURIComponent(currentUser.email.toLowerCase());
+      try {
+        const response = await apiFetch(`/admin/users/${encodeURIComponent(email)}?actor=${actor}`, { method: 'DELETE' });
+        if (adminStatus) {
+          adminStatus.textContent = `Removed ${email}.`;
+        }
+        const lowerEmail = email.toLowerCase();
+        const removedSelf = (response && response.self) || (currentUser.email && currentUser.email.toLowerCase() === lowerEmail);
+        if (removedSelf) {
+          setCurrentUser(null);
+        } else {
+          await Promise.all([loadAdminOverview(true), loadJobs(true)]);
+        }
+      } catch (err) {
+        console.error(err);
+        if (adminStatus) {
+          adminStatus.textContent = err instanceof Error ? err.message : 'Unable to remove user.';
+        }
+      }
+    }
+
+    if (formCreateJob) {
+      formCreateJob.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!currentUser || !currentUser.email) {
+          updateStatusMessage('Sign in to publish jobs.');
+          toggleAuthSheet(true, 'login');
+          return;
+        }
+
+        const titleValue = jobTitle ? jobTitle.value.trim() : '';
+        const payloadValue = jobPayload ? jobPayload.value.trim() : '';
+        const departureValue = jobDeparture ? jobDeparture.value.trim().toUpperCase() : '';
+        const arrivalValue = jobArrival ? jobArrival.value.trim().toUpperCase() : '';
+        const deadlineValue = jobDeadline ? jobDeadline.value : '';
+        const notesValue = jobNotes ? jobNotes.value.trim() : '';
+        const teamValue = jobTeam ? jobTeam.value : '';
+        const airlineValue = jobAirline ? jobAirline.value : '';
+
+        if (!titleValue || !payloadValue || !departureValue || !arrivalValue || !deadlineValue) {
+          updateStatusMessage('All required fields must be completed.');
+          return;
+        }
+
+        const deadlineDate = new Date(deadlineValue);
+        if (Number.isNaN(deadlineDate.getTime())) {
+          updateStatusMessage('Deadline must be a valid date/time.');
+          return;
+        }
+
+        let weightValue = null;
+        if (jobWeight && jobWeight.value.trim()) {
+          const parsed = Number(jobWeight.value);
+          if (!Number.isFinite(parsed) || parsed < 0) {
+            updateStatusMessage('Weight must be a positive number.');
+            return;
+          }
+          weightValue = parsed;
+        }
+
+        const legsPayload = jobLegEditor ? jobLegEditor.collect() : [
+          { seq: 1, mode: 'flight', origin_airport: departureValue, destination_airport: arrivalValue },
+        ];
+
+        const payloadBody = {
+          title: titleValue,
+          platform: 'Microsoft Flight Simulator',
+          payload: payloadValue,
+          weight_lbs: weightValue,
+          departure_airport: departureValue,
+          arrival_airport: arrivalValue,
+          deadline: deadlineDate.toISOString(),
+          notes: notesValue || null,
+          created_by: currentUser.email.toLowerCase(),
+          team_id: teamValue || null,
+          airline_id: airlineValue || null,
+          legs: legsPayload,
+        };
+
+        updateStatusMessage('Publishing job...');
+        try {
+          await apiFetch('/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payloadBody),
+          });
+          formCreateJob.reset();
+          if (jobDeparture) {
+            jobDeparture.value = departureValue;
+          }
+          if (jobArrival) {
+            jobArrival.value = arrivalValue;
+          }
+          if (jobWeight) {
+            jobWeight.value = weightValue !== null ? String(weightValue) : '';
+          }
+          if (jobTeam) {
+            jobTeam.value = teamValue;
+          }
+          if (jobAirline) {
+            jobAirline.value = airlineValue;
+          }
+          if (jobLegEditor) {
+            jobLegEditor.reset();
+          }
+          setJobDeadlineDefault(jobDeadline);
+          await loadJobs(true);
+          updateStatusMessage('Job created.');
+        } catch (err) {
+          console.error(err);
+          updateStatusMessage(err instanceof Error ? err.message : 'Unable to create job.');
+        }
+      });
+    }
+
+    if (btnJobsGenerate) {
+      btnJobsGenerate.addEventListener('click', async () => {
+        if (btnJobsGenerate.disabled) {
+          return;
+        }
+        btnJobsGenerate.disabled = true;
+        btnJobsGenerate.classList.add('opacity-60', 'cursor-not-allowed');
+        updateStatusMessage('Requesting SimuNet missions…');
+        try {
+          const res = await apiFetch('/jobs/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ count: 3 }),
+          });
+          await loadJobs(false);
+          const created = res && typeof res === 'object' && res !== null
+            ? (Array.isArray(res.jobs) ? res.jobs.length : (typeof res.count === 'number' ? res.count : 0))
+            : 0;
+          if (created > 0) {
+            updateStatusMessage(`SimuNet generated ${created} new job${created === 1 ? '' : 's'}.`);
+          } else {
+            updateStatusMessage('SimuNet had no new missions ready.');
+          }
+        } catch (err) {
+          console.error(err);
+          updateStatusMessage(err instanceof Error ? err.message : 'Unable to request SimuNet missions.');
+        } finally {
+          btnJobsGenerate.disabled = false;
+          btnJobsGenerate.classList.remove('opacity-60', 'cursor-not-allowed');
+        }
+      });
+    }
+
+    if (formAdminJob) {
+      formAdminJob.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!currentUser || !currentUser.email || !currentUser.is_admin) {
+          if (adminStatus) {
+            adminStatus.textContent = 'Admin access required to publish missions.';
+          }
+          toggleAuthSheet(true, 'login');
+          return;
+        }
+
+        const titleValue = adminJobTitle ? adminJobTitle.value.trim() : '';
+        const payloadValue = adminJobPayload ? adminJobPayload.value.trim() : '';
+        const departureValue = adminJobDeparture ? adminJobDeparture.value.trim().toUpperCase() : '';
+        const arrivalValue = adminJobArrival ? adminJobArrival.value.trim().toUpperCase() : '';
+        const deadlineValue = adminJobDeadline ? adminJobDeadline.value : '';
+        const notesValue = adminJobNotes ? adminJobNotes.value.trim() : '';
+        const assignedValue = adminJobAssign ? adminJobAssign.value.trim().toLowerCase() : '';
+        const teamValue = adminJobTeam ? adminJobTeam.value : '';
+        const airlineValue = adminJobAirline ? adminJobAirline.value : '';
+
+        if (!titleValue || !payloadValue || !departureValue || !arrivalValue || !deadlineValue) {
+          if (adminStatus) {
+            adminStatus.textContent = 'All required fields must be completed.';
+          }
+          return;
+        }
+
+        const deadlineDate = new Date(deadlineValue);
+        if (Number.isNaN(deadlineDate.getTime())) {
+          if (adminStatus) {
+            adminStatus.textContent = 'Deadline must be a valid date/time.';
+          }
+          return;
+        }
+
+        let weightValue = null;
+        if (adminJobWeight && adminJobWeight.value.trim()) {
+          const parsed = Number(adminJobWeight.value);
+          if (!Number.isFinite(parsed) || parsed < 0) {
+            if (adminStatus) {
+              adminStatus.textContent = 'Weight must be a positive number.';
+            }
+            return;
+          }
+          weightValue = parsed;
+        }
+
+        const legsPayload = adminLegEditor ? adminLegEditor.collect() : [
+          { seq: 1, mode: 'flight', origin_airport: departureValue, destination_airport: arrivalValue },
+        ];
+
+        const payloadBody = {
+          title: titleValue,
+          platform: 'Microsoft Flight Simulator',
+          payload: payloadValue,
+          weight_lbs: weightValue,
+          departure_airport: departureValue,
+          arrival_airport: arrivalValue,
+          deadline: deadlineDate.toISOString(),
+          notes: notesValue || null,
+          created_by: currentUser.email.toLowerCase(),
+          assigned_to: assignedValue || null,
+          legs: legsPayload,
+          team_id: teamValue || null,
+          airline_id: airlineValue || null,
+        };
+
+        if (adminStatus) {
+          adminStatus.textContent = 'Publishing mission…';
+        }
+
+        try {
+          await apiFetch('/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payloadBody),
+          });
+          formAdminJob.reset();
+          setJobDeadlineDefault(adminJobDeadline);
+          if (adminJobDeparture) {
+            adminJobDeparture.value = departureValue;
+          }
+          if (adminJobArrival) {
+            adminJobArrival.value = arrivalValue;
+          }
+          if (adminJobTeam) {
+            adminJobTeam.value = teamValue;
+          }
+          if (adminJobAirline) {
+            adminJobAirline.value = airlineValue;
+          }
+          if (adminLegEditor) {
+            adminLegEditor.reset();
+          }
+          await Promise.all([loadJobs(false), loadAdminOverview(true)]);
+          if (adminStatus) {
+            adminStatus.textContent = 'Mission published.';
+          }
+        } catch (err) {
+          console.error(err);
+          if (adminStatus) {
+            adminStatus.textContent = err instanceof Error ? err.message : 'Unable to publish mission.';
+          }
+        }
+      });
+    }
+
+    if (btnAdminGenerate) {
+      btnAdminGenerate.addEventListener('click', async () => {
+        if (!currentUser || !currentUser.email || !currentUser.is_admin) {
+          if (adminStatus) {
+            adminStatus.textContent = 'Admin access required for auto-generation.';
+          }
+          toggleAuthSheet(true, 'login');
+          return;
+        }
+        if (btnAdminGenerate.disabled) {
+          return;
+        }
+        btnAdminGenerate.disabled = true;
+        btnAdminGenerate.classList.add('opacity-60', 'cursor-not-allowed');
+        if (adminStatus) {
+          adminStatus.textContent = 'Requesting SimuNet missions…';
+        }
+        try {
+          const res = await apiFetch('/jobs/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ count: 3 }),
+          });
+          await Promise.all([loadJobs(false), loadAdminOverview(true)]);
+          const created = res && typeof res === 'object' && res !== null
+            ? (Array.isArray(res.jobs) ? res.jobs.length : (typeof res.count === 'number' ? res.count : 0))
+            : 0;
+          if (adminStatus) {
+            adminStatus.textContent = created > 0
+              ? `SimuNet generated ${created} new mission${created === 1 ? '' : 's'}.`
+              : 'SimuNet had no new missions ready.';
+          }
+        } catch (err) {
+          console.error(err);
+          if (adminStatus) {
+            adminStatus.textContent = err instanceof Error ? err.message : 'Unable to request missions.';
+          }
+        } finally {
+          btnAdminGenerate.disabled = false;
+          btnAdminGenerate.classList.remove('opacity-60', 'cursor-not-allowed');
+        }
+      });
+    }
+
+    if (btnAdminRefresh) {
+      btnAdminRefresh.addEventListener('click', () => {
+        loadAdminOverview(true);
+      });
+    }
+
+    if (btnJobsRefresh) {
+      btnJobsRefresh.addEventListener('click', () => loadJobs(true));
+    }
+
+    function updateNav(targetPage) {
+      navLinks.forEach((link) => {
+        const active = link.dataset.nav === targetPage;
+        link.classList.toggle('bg-white/10', active);
+        link.classList.toggle('text-white', active);
+        link.classList.toggle('text-slate-300', !active);
+      });
+      if (targetPage === 'jobs' && currentUser && currentUser.email) {
+        loadCrewContext(false);
+      }
+    }
+
+    function showPage(page, { updateHash = true } = {}) {
+      let target = null;
+      pages.forEach((section) => {
+        if (section.dataset.page === page && !target) {
+          target = section;
+        }
+      });
+      if (!target) {
+        target = pages[0];
+        page = target ? target.dataset.page : 'dashboard';
+      }
+      pages.forEach((section) => {
+        section.classList.toggle('hidden', section !== target);
+      });
+      updateNav(page);
+      if (page === 'jobs') {
+        loadJobs(!jobsLoaded);
+      }
+      if (page === 'admin') {
+        if (currentUser && currentUser.is_admin) {
+          loadAdminOverview(!adminLoaded);
+        } else if (adminStatus) {
+          adminStatus.textContent = 'Admin privileges required to view this page.';
+        }
+      }
+      if (updateHash && ('#' + page) !== location.hash) {
+        history.replaceState(null, '', '#' + page);
+      }
+    }
+
+    navLinks.forEach((link) => {
+      link.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const page = link.dataset.nav || 'dashboard';
+        showPage(page);
+      });
+    });
+
+    window.addEventListener('hashchange', () => {
+      const page = location.hash.replace('#', '') || 'dashboard';
+      showPage(page, { updateHash: false });
+    });
+
+    loadStoredUser();
+
+    const initialPage = location.hash.replace('#', '') || 'dashboard';
+    showPage(initialPage, { updateHash: false });
+
+    checkStatus();
+    setInterval(() => checkStatus(false), 45000);
   </script>
 </body>
 </html>
