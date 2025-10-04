@@ -4,7 +4,15 @@ from typing import Optional
 from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 
 from sqlalchemy import (
-    create_engine, text, String, Integer, Float, DateTime, ForeignKey, MetaData, UniqueConstraint
+    create_engine,
+    text,
+    String,
+    Integer,
+    Float,
+    DateTime,
+    ForeignKey,
+    MetaData,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
@@ -44,6 +52,12 @@ class Job(Base):
     __tablename__ = "jobs"
     job_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     legs: Mapped[list["Leg"]] = relationship(back_populates="job", cascade="all, delete-orphan")
+    owner: Mapped[Optional["JobOwner"]] = relationship(
+        back_populates="job",
+        cascade="all, delete-orphan",
+        single_parent=True,
+        uselist=False,
+    )
 
 class Leg(Base):
     __tablename__ = "legs"
@@ -52,6 +66,14 @@ class Leg(Base):
     mode: Mapped[str] = mapped_column(String(16), nullable=False, default="truck")
     job_id: Mapped[str] = mapped_column(String(64), ForeignKey("jobs.job_id"), index=True)
     job: Mapped["Job"] = relationship(back_populates="legs")
+
+
+class JobOwner(Base):
+    __tablename__ = "job_owners"
+    job_id: Mapped[str] = mapped_column(String(64), ForeignKey("jobs.job_id"), primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    job: Mapped["Job"] = relationship(back_populates="owner", uselist=False)
+
 
 class Flight(Base):
     __tablename__ = "flights"
@@ -78,23 +100,4 @@ def _init_engine():
         raise RuntimeError("DATABASE_URL not set")
     if _engine is None:
         # Set echo=True temporarily if you want to see SQL in logs
-        _engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-        SessionLocal = sessionmaker(bind=_engine)
-
-def ensure_db():
-    """
-    Create the engine, create tables, and run a sanity SELECT.
-    Returns (True, None) on success, (False, 'error message') on failure.
-    """
-    try:
-        _init_engine()
-        Base.metadata.create_all(_engine)
-        with _engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        print("DB init: connected and tables ensured", flush=True)
-        return True, None
-    except Exception as e:
-        import traceback
-        print("DB init error:", e, flush=True)
-        traceback.print_exc()
-        return False, str(e)
+frontend/index.html
