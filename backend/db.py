@@ -4,7 +4,18 @@ from typing import Optional
 from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 
 from sqlalchemy import (
-    create_engine, text, String, Integer, Float, DateTime, ForeignKey, MetaData, UniqueConstraint
+    create_engine,
+    text,
+    String,
+    Integer,
+    Float,
+    DateTime,
+    ForeignKey,
+    MetaData,
+    UniqueConstraint,
+    Text,
+    Boolean,
+    inspect,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
@@ -26,6 +37,8 @@ def _normalize_url(url: str) -> str:
 
 DATABASE_URL = _normalize_url(os.getenv("DATABASE_URL", ""))
 
+SIMUNET_CREATOR_EMAIL = "ops@simunet.local"
+
 _engine = None
 SessionLocal = None
 
@@ -39,11 +52,24 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True, default=datetime.utcnow)
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 class Job(Base):
     __tablename__ = "jobs"
     job_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     legs: Mapped[list["Leg"]] = relationship(back_populates="job", cascade="all, delete-orphan")
+    owner: Mapped[Optional["JobOwner"]] = relationship(
+        back_populates="job",
+        cascade="all, delete-orphan",
+        single_parent=True,
+        uselist=False,
+    )
+    detail: Mapped[Optional["JobDetail"]] = relationship(
+        back_populates="job",
+        cascade="all, delete-orphan",
+        single_parent=True,
+        uselist=False,
+    )
 
 class Leg(Base):
     __tablename__ = "legs"
@@ -52,6 +78,33 @@ class Leg(Base):
     mode: Mapped[str] = mapped_column(String(16), nullable=False, default="truck")
     job_id: Mapped[str] = mapped_column(String(64), ForeignKey("jobs.job_id"), index=True)
     job: Mapped["Job"] = relationship(back_populates="legs")
+
+
+class JobOwner(Base):
+    __tablename__ = "job_owners"
+    job_id: Mapped[str] = mapped_column(String(64), ForeignKey("jobs.job_id"), primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    job: Mapped["Job"] = relationship(back_populates="owner", uselist=False)
+
+
+class JobDetail(Base):
+    __tablename__ = "job_details"
+
+    job_id: Mapped[str] = mapped_column(String(64), ForeignKey("jobs.job_id"), primary_key=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    platform: Mapped[str] = mapped_column(String(128), nullable=False, default="Microsoft Flight Simulator")
+    payload: Mapped[str] = mapped_column(String(255), nullable=False)
+    weight_lbs: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    departure_airport: Mapped[str] = mapped_column(String(16), nullable=False)
+    arrival_airport: Mapped[str] = mapped_column(String(16), nullable=False)
+    deadline: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True, default=datetime.utcnow)
+    assigned_to: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    job: Mapped["Job"] = relationship(back_populates="detail", uselist=False)
+
 
 class Flight(Base):
     __tablename__ = "flights"
@@ -77,7 +130,6 @@ def _init_engine():
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL not set")
     if _engine is None:
-        # Set echo=True temporarily if you want to see SQL in logs
         _engine = create_engine(DATABASE_URL, pool_pre_ping=True)
         SessionLocal = sessionmaker(bind=_engine)
 
@@ -89,6 +141,7 @@ def ensure_db():
     try:
         _init_engine()
         Base.metadata.create_all(_engine)
+        _apply_schema_patches()
         with _engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         print("DB init: connected and tables ensured", flush=True)
@@ -98,3 +151,36 @@ def ensure_db():
         print("DB init error:", e, flush=True)
         traceback.print_exc()
         return False, str(e)
+
+
+def _apply_schema_patches() -> None:
+    if _engine is None:
+        return
+
+    try:
+        inspector = inspect(_engine)
+        tables = set(inspector.get_table_names())
+    except Exception:
+        return
+
+    if "users" not in tables:
+        return
+
+    try:
+        columns = {column["name"] for column in inspector.get_columns("users")}
+    except Exception:
+        return
+
+    if "is_admin" in columns:
+        return
+
+    ddl = "ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE"
+    update_admin = """
+        UPDATE users
+        SET is_admin = TRUE
+        WHERE lower(email) = :email
+    """
+
+    with _engine.begin() as conn:
+        conn.execute(text(ddl))
+        conn.execute(text(update_admin), {"email": SIMUNET_CREATOR_EMAIL})

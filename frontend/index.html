@@ -24,7 +24,9 @@
         <div><div class="font-bold text-lg">SimuNet</div><div class="text-xs text-slate-400">Drive • Fly • Deliver</div></div>
       </div>
       <nav class="mt-4 flex-1 flex flex-col">
-        <a class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 text-white" href="#"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
+        <a data-nav="dashboard" class="nav-link flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 text-white" href="#dashboard"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
+        <a data-nav="jobs" class="nav-link flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-white/10" href="#jobs"><i data-lucide="clipboard-list" class="w-4 h-4"></i> Jobs</a>
+        <a data-nav="admin" id="navAdmin" class="nav-link flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-white/10 hidden" href="#admin"><i data-lucide="shield-check" class="w-4 h-4"></i> Admin</a>
         <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-white/10" href="#"><i data-lucide="plane" class="w-4 h-4"></i> Flights</a>
         <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-white/10" href="#"><i data-lucide="radio" class="w-4 h-4"></i> Connectors</a>
         <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-white/10" href="#"><i data-lucide="book-open" class="w-4 h-4"></i> Docs</a>
@@ -34,87 +36,304 @@
 
     <div class="flex flex-col">
       <header class="flex items-center gap-3 p-3 md:p-4 border-b border-white/10 bg-[#0f1430]/90 sticky top-0 z-10">
-        <div class="hidden md:flex items-center gap-2">
-          <span class="text-xs px-2 py-1 border border-white/10 rounded-full text-slate-300">API</span>
-          <input id="api" class="px-3 py-2 w-[320px] rounded-lg bg-[#0f1538] border border-white/10 text-sm" placeholder="https://your-api.onrender.com" />
-          <button id="btnPing" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm">Ping</button>
-          <span id="dbStatus" class="text-xs px-2 py-1 rounded-full border border-white/10 text-slate-300">db?</span>
-          <span id="apiStatus" class="text-xs px-2 py-1 rounded-full border border-white/10 text-slate-300">api?</span>
+        <div class="flex items-center gap-2 text-xs">
+          <span id="dbStatus" class="px-2 py-1 rounded-full border border-white/10 text-slate-300">db?</span>
+          <span id="apiStatus" class="px-2 py-1 rounded-full border border-white/10 text-slate-300">api?</span>
         </div>
         <div class="ml-auto flex items-center gap-3">
           <button id="themeToggle" class="p-2 rounded-lg bg-white/10" title="Toggle theme"><i data-lucide="sun"></i></button>
-          <div class="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/10">
-            <div class="w-6 h-6 rounded-full grad grid place-items-center text-xs font-bold">A</div>
-            <div class="hidden sm:block text-xs text-slate-300">Logged in</div>
-          </div>
+          <button id="btnAccount" class="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/10 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/30" type="button">
+            <div id="accountAvatar" class="w-7 h-7 rounded-full grad grid place-items-center text-xs font-bold">?</div>
+            <div id="accountLabel" class="hidden sm:block text-xs text-slate-300">Sign in</div>
+          </button>
         </div>
       </header>
 
       <main class="p-3 md:p-6 space-y-6">
-        <section class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
-            <div class="text-slate-300 text-sm">Active Flights</div>
-            <div class="text-2xl font-bold mt-1"><span id="kpiFlights">0</span></div>
+        <section data-page="dashboard" class="space-y-6">
+          <section class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
+              <div class="text-slate-300 text-sm">Active Flights</div>
+              <div class="text-2xl font-bold mt-1"><span id="kpiFlights">0</span></div>
+            </div>
+            <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
+              <div class="text-slate-300 text-sm">Telemetry Points</div>
+              <div class="text-2xl font-bold mt-1"><span id="kpiPoints">0</span></div>
+            </div>
+            <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
+              <div class="text-slate-300 text-sm">My Jobs</div>
+              <div class="text-2xl font-bold mt-1"><span id="kpiJobs">0</span></div>
+            </div>
+            <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
+              <div class="text-slate-300 text-sm">Signed In</div>
+              <div class="text-2xl font-bold mt-1 truncate" title="Guest"><span id="kpiAccount">Guest</span></div>
+            </div>
+          </section>
+
+          <section class="grid lg:grid-cols-[1.6fr_1fr] gap-4">
+            <div class="space-y-4">
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="font-semibold">Live Map</h3>
+                  <div class="text-xs text-slate-400" id="status">Ready.</div>
+                </div>
+                <div id="map" class="h-[440px] rounded-lg overflow-hidden tile-dark"></div>
+              </div>
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="font-semibold">Altitude (k-index)</h3>
+                  <div class="text-xs text-slate-400" id="chartMeta">—</div>
+                </div>
+                <canvas id="altChart" height="160"></canvas>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+                <h3 class="font-semibold mb-3">Quick Actions</h3>
+                <div class="space-y-3">
+                  <div class="flex gap-2">
+                    <input id="flightId" class="flex-1 px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 text-sm" placeholder="flight_id" />
+                    <button id="btnCopy" class="px-3 py-2 rounded-lg bg-white/10">Copy</button>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <button id="btnSeed" class="px-3 py-2 rounded-lg grad">Seed & Start</button>
+                    <button id="btnLoad" class="px-3 py-2 rounded-lg bg-white/10">Load & Animate</button>
+                    <button id="btnDemo" class="px-3 py-2 rounded-lg bg-white/10 col-span-2">Start Demo Stream</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+                <h3 class="font-semibold mb-3">Recent Flights</h3>
+                <div class="overflow-auto">
+                  <table class="w-full text-sm">
+                    <thead class="text-left text-slate-300">
+                      <tr><th class="py-2">Flight ID</th><th class="py-2">Points</th><th class="py-2">Last Used</th></tr>
+                    </thead>
+                    <tbody id="recentTable" class="text-slate-400"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section data-page="jobs" class="space-y-6 hidden">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 class="text-xl font-semibold">Jobs Board</h2>
+              <p class="text-sm text-slate-400">Create, browse, and claim Microsoft Flight Simulator missions.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="jobsMeta" class="text-xs text-slate-400">—</span>
+              <button id="btnJobsGenerate" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm flex items-center gap-2">
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                <span>SimuNet auto</span>
+              </button>
+              <button id="btnJobsRefresh" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm">Refresh</button>
+            </div>
           </div>
-          <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
-            <div class="text-slate-300 text-sm">Telemetry Points</div>
-            <div class="text-2xl font-bold mt-1"><span id="kpiPoints">0</span></div>
-          </div>
-          <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
-            <div class="text-slate-300 text-sm">Database</div>
-            <div class="text-2xl font-bold mt-1"><span id="kpiDb">offline</span></div>
-          </div>
-          <div class="border border-white/10 rounded-2xl p-4 bg-[#0f1430]">
-            <div class="text-slate-300 text-sm">API</div>
-            <div class="text-2xl font-bold mt-1"><span id="kpiApi">unknown</span></div>
+
+          <div class="grid gap-4 lg:grid-cols-3">
+            <div class="space-y-4">
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+                <div class="flex items-center justify-between gap-2 mb-3">
+                  <h3 class="text-lg font-semibold text-slate-100">Create Flight Job</h3>
+                  <span class="text-xs uppercase tracking-wide text-indigo-300/80">Microsoft Flight Simulator</span>
+                </div>
+                <form id="formCreateJob" class="space-y-3">
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobTitle">Mission title</label>
+                    <input id="jobTitle" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Mountain relief drop" required />
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobPayload">Payload</label>
+                    <input id="jobPayload" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Emergency supplies" required />
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobWeight">Weight (lbs)</label>
+                      <input id="jobWeight" type="number" min="0" step="0.1" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="7500" />
+                    </div>
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobDeadline">Deadline</label>
+                      <input id="jobDeadline" type="datetime-local" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" required />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobDeparture">Departure</label>
+                      <input id="jobDeparture" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 uppercase" placeholder="KSEA" required maxlength="8" />
+                    </div>
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobArrival">Arrival</label>
+                      <input id="jobArrival" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 uppercase" placeholder="CYVR" required maxlength="8" />
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="jobNotes">Notes</label>
+                    <textarea id="jobNotes" rows="3" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Brief the pilot on weather, cargo handling, or other specifics."></textarea>
+                  </div>
+                  <button type="submit" class="w-full px-3 py-2 rounded-lg grad text-sm font-medium">Publish job</button>
+                </form>
+                <p class="mt-3 text-xs text-slate-400">Jobs are visible to everyone until claimed. Signing in is required to publish or claim.</p>
+              </div>
+            </div>
+
+            <div class="lg:col-span-2 space-y-4">
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                  <div>
+                    <h3 class="text-lg font-semibold text-slate-100">Available jobs</h3>
+                    <p class="text-sm text-slate-400">Pick a mission to add it to your hangar.</p>
+                  </div>
+                </div>
+                <div id="jobsAvailable" class="space-y-3"></div>
+                <div id="jobsAvailableEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">No jobs available yet. Create one to get started.</div>
+              </div>
+
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                  <div>
+                    <h3 class="text-lg font-semibold text-slate-100">My jobs</h3>
+                    <p class="text-sm text-slate-400">Claimed missions stay private to your account.</p>
+                  </div>
+                </div>
+                <div id="jobsMine" class="space-y-3"></div>
+                <div id="jobsMineEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">Sign in to track claimed jobs.</div>
+              </div>
+            </div>
           </div>
         </section>
 
-        <section class="grid lg:grid-cols-[1.6fr_1fr] gap-4">
-          <div class="space-y-4">
-            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
-              <div class="flex items-center justify-between mb-3">
-                <h3 class="font-semibold">Live Map</h3>
-                <div class="text-xs text-slate-400" id="status">Ready.</div>
-              </div>
-              <div id="map" class="h-[440px] rounded-lg overflow-hidden tile-dark"></div>
+        <section data-page="admin" class="space-y-6 hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 class="text-xl font-semibold">Admin Control Center</h2>
+              <p class="text-sm text-slate-400">Manage SimuNet missions and pilot profiles.</p>
             </div>
-            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
-              <div class="flex items-center justify-between mb-3">
-                <h3 class="font-semibold">Altitude (k-index)</h3>
-                <div class="text-xs text-slate-400" id="chartMeta">—</div>
-              </div>
-              <canvas id="altChart" height="160"></canvas>
+            <div class="flex items-center gap-2">
+              <span id="adminStatus" class="text-xs text-slate-400">Sign in with an administrator account to continue.</span>
+              <button id="btnAdminRefresh" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm hidden">Refresh</button>
             </div>
           </div>
 
-          <div class="space-y-4">
-            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
-              <h3 class="font-semibold mb-3">Quick Actions</h3>
-              <div class="space-y-3">
-                <div class="flex gap-2">
-                  <input id="flightId" class="flex-1 px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 text-sm" placeholder="flight_id" />
-                  <button id="btnCopy" class="px-3 py-2 rounded-lg bg-white/10">Copy</button>
+          <div id="adminGate" class="border border-dashed border-indigo-400/60 bg-indigo-500/5 rounded-2xl p-6 text-sm text-slate-200">
+            Sign in as a SimuNet administrator to access mission publishing, moderation, and crew management tools.
+          </div>
+
+          <div id="adminContent" class="space-y-6 hidden">
+            <div class="grid lg:grid-cols-2 gap-4">
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4 space-y-4">
+                <div class="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 class="text-lg font-semibold text-slate-100">Publish mission</h3>
+                    <p class="text-xs text-slate-400">Create assignments on behalf of SimuNet Ops.</p>
+                  </div>
                 </div>
-                <div class="grid grid-cols-2 gap-2">
-                  <button id="btnSeed" class="px-3 py-2 rounded-lg grad">Seed & Start</button>
-                  <button id="btnLoad" class="px-3 py-2 rounded-lg bg-white/10">Load & Animate</button>
-                  <button id="btnDemo" class="px-3 py-2 rounded-lg bg-white/10 col-span-2">Start Demo Stream</button>
+                <form id="formAdminJob" class="space-y-3">
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobTitle">Mission title</label>
+                    <input id="adminJobTitle" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Arctic supply run" required />
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobPayload">Payload</label>
+                    <input id="adminJobPayload" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Medical cargo" required />
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobWeight">Weight (lbs)</label>
+                      <input id="adminJobWeight" type="number" min="0" step="0.1" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="6800" />
+                    </div>
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobDeadline">Deadline</label>
+                      <input id="adminJobDeadline" type="datetime-local" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" required />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobDeparture">Departure</label>
+                      <input id="adminJobDeparture" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 uppercase" placeholder="KSEA" required maxlength="8" />
+                    </div>
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobArrival">Arrival</label>
+                      <input id="adminJobArrival" type="text" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10 uppercase" placeholder="CYVR" required maxlength="8" />
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobAssign">Assign to (optional)</label>
+                    <input id="adminJobAssign" type="email" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="pilot@example.com" />
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="adminJobNotes">Notes</label>
+                    <textarea id="adminJobNotes" rows="3" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Share weather, coordination, or cargo handling details."></textarea>
+                  </div>
+                  <button type="submit" class="w-full px-3 py-2 rounded-lg grad text-sm font-medium">Publish mission</button>
+                </form>
+                <p class="text-xs text-slate-400">Assignments can optionally be pre-assigned to a pilot email. Leave blank to keep them open.</p>
+              </div>
+
+              <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4 space-y-4">
+                <div>
+                  <h3 class="text-lg font-semibold text-slate-100">SimuNet Ops tools</h3>
+                  <p class="text-xs text-slate-400">Automate job creation and keep the board refreshed.</p>
                 </div>
-                <p class="text-xs text-slate-400">Tip: Pass <code>?api=https://your-api.onrender.com</code> in the URL to preset the API.</p>
+                <div class="space-y-3">
+                  <button id="btnAdminGenerate" type="button" class="w-full px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm flex items-center justify-center gap-2">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>Generate SimuNet missions</span>
+                  </button>
+                  <p class="text-xs text-slate-400">SimuNet Ops missions come with curated payloads, routes, and deadlines.</p>
+                </div>
               </div>
             </div>
 
             <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
-              <h3 class="font-semibold mb-3">Recent Flights</h3>
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                <div>
+                  <h3 class="text-lg font-semibold text-slate-100">All jobs</h3>
+                  <p class="text-sm text-slate-400">Monitor and remove assignments across the network.</p>
+                </div>
+              </div>
               <div class="overflow-auto">
                 <table class="w-full text-sm">
                   <thead class="text-left text-slate-300">
-                    <tr><th class="py-2">Flight ID</th><th class="py-2">Points</th><th class="py-2">Last Used</th></tr>
+                    <tr>
+                      <th class="py-2">Mission</th>
+                      <th class="py-2">Creator</th>
+                      <th class="py-2">Assigned</th>
+                      <th class="py-2">Deadline</th>
+                      <th class="py-2 text-right">Actions</th>
+                    </tr>
                   </thead>
-                  <tbody id="recentTable" class="text-slate-400"></tbody>
+                  <tbody id="adminJobsBody" class="text-slate-400"></tbody>
                 </table>
               </div>
+              <div id="adminJobsEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">No jobs recorded yet.</div>
+            </div>
+
+            <div class="border border-white/10 rounded-2xl bg-[#0f1430] p-4">
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                <div>
+                  <h3 class="text-lg font-semibold text-slate-100">User directory</h3>
+                  <p class="text-sm text-slate-400">Promote admins, reset passwords, or remove inactive accounts.</p>
+                </div>
+              </div>
+              <div class="overflow-auto">
+                <table class="w-full text-sm">
+                  <thead class="text-left text-slate-300">
+                    <tr>
+                      <th class="py-2">Email</th>
+                      <th class="py-2">Role</th>
+                      <th class="py-2">Created</th>
+                      <th class="py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminUsersBody" class="text-slate-400"></tbody>
+                </table>
+              </div>
+              <div id="adminUsersEmpty" class="text-sm text-slate-400 text-center py-6 border border-dashed border-white/10 rounded-xl">No users found.</div>
             </div>
           </div>
         </section>
@@ -122,161 +341,1312 @@
     </div>
   </div>
 
+  <div id="authSheet" class="hidden fixed inset-0 z-[1200] p-4 md:p-8 bg-black/70 backdrop-blur-sm">
+    <div class="relative max-w-md mx-auto mt-12 md:mt-20 bg-[#0f1430] border border-white/10 rounded-2xl p-6 shadow-2xl">
+      <button id="btnAuthClose" class="absolute top-4 right-4 text-slate-400 hover:text-slate-200" type="button" aria-label="Close">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="space-y-1 text-center mb-4">
+        <h2 class="text-lg font-semibold" id="authTitle">Welcome</h2>
+        <p class="text-sm text-slate-400" id="authSubtitle">Sign in or create an account to personalise your dashboard.</p>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-sm mb-4">
+        <button class="auth-tab px-3 py-2 rounded-lg bg-white/10 text-white" data-auth-tab="login" type="button">Log in</button>
+        <button class="auth-tab px-3 py-2 rounded-lg bg-white/5 text-slate-300 hover:bg-white/10" data-auth-tab="register" type="button">Create account</button>
+      </div>
+      <div id="authAccountSummary" class="hidden text-left mb-4 border border-white/10 rounded-xl p-4 bg-[#0b1020]/60">
+        <div class="font-medium text-slate-100" id="summaryEmail"></div>
+        <div class="text-xs text-slate-400" id="summaryCreated"></div>
+      </div>
+      <div id="authError" class="hidden mb-3 text-sm text-rose-300 bg-rose-500/10 border border-rose-400/40 rounded-lg px-3 py-2"></div>
+      <div id="authSuccess" class="hidden mb-3 text-sm text-emerald-300 bg-emerald-500/10 border border-emerald-400/40 rounded-lg px-3 py-2"></div>
+      <form id="formLogin" class="space-y-3">
+        <div class="text-left">
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="loginEmail">Email</label>
+          <input id="loginEmail" type="email" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="you@example.com" autocomplete="email" required />
+        </div>
+        <div class="text-left">
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="loginPassword">Password</label>
+          <input id="loginPassword" type="password" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="••••••••" autocomplete="current-password" minlength="8" required />
+        </div>
+        <button type="submit" class="w-full px-3 py-2 rounded-lg grad text-sm font-medium">Log in</button>
+      </form>
+      <form id="formRegister" class="space-y-3 hidden">
+        <div class="text-left">
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="registerEmail">Email</label>
+          <input id="registerEmail" type="email" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="you@example.com" autocomplete="email" required />
+        </div>
+        <div class="text-left">
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1" for="registerPassword">Password</label>
+          <input id="registerPassword" type="password" class="w-full px-3 py-2 rounded-lg bg-[#0f1538] border border-white/10" placeholder="Min. 8 characters" autocomplete="new-password" minlength="8" required />
+        </div>
+        <p class="text-xs text-slate-400">Passwords are stored securely using PBKDF2 hashing.</p>
+        <button type="submit" class="w-full px-3 py-2 rounded-lg grad text-sm font-medium">Create account</button>
+      </form>
+      <button id="btnLogout" class="hidden w-full mt-4 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm" type="button">Sign out</button>
+    </div>
+  </div>
+
   <script>
     lucide.createIcons();
-    document.getElementById('themeToggle').addEventListener('click', ()=> document.documentElement.classList.toggle('dark'));
+    document.getElementById('themeToggle').addEventListener('click', () => document.documentElement.classList.toggle('dark'));
 
     const ls = window.localStorage;
-    const qsApi = new URLSearchParams(location.search).get('api');
-    const apiInput = document.getElementById('api');
-    const detected = (location.origin.includes('localhost') || location.protocol==='file:') ? 'http://localhost:8000' : location.origin;
-    apiInput.value = qsApi || ls.getItem('simunet_api') || detected;
-    apiInput.addEventListener('change', ()=> ls.setItem('simunet_api', apiInput.value.trim()));
+    const USER_KEY = 'simunet_user';
 
-    const map = L.map('map', { zoomControl: true }).setView([39.5,-98.35], 4);
+    const API_BASE = (() => {
+      const param = new URLSearchParams(location.search).get('api');
+      if (param) {
+        return param.replace(/\/$/, '');
+      }
+      const origin = location.origin;
+      if (origin && origin !== 'null' && !origin.startsWith('file:')) {
+        return origin.replace(/\/$/, '');
+      }
+      return 'http://localhost:8000';
+    })();
+
+    const map = L.map('map', { zoomControl: true }).setView([39.5, -98.35], 4);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
-    const pathLine = L.polyline([], { weight: 3, opacity: .95 }).addTo(map);
-    const marker = L.circleMarker([0,0], { radius: 6, weight: 2 }).addTo(map);
+    const pathLine = L.polyline([], { weight: 3, opacity: 0.95 }).addTo(map);
+    const marker = L.circleMarker([0, 0], { radius: 6, weight: 2 }).addTo(map);
 
     const statusEl = document.getElementById('status');
     const kpiFlights = document.getElementById('kpiFlights');
-    const kpiPoints  = document.getElementById('kpiPoints');
-    const kpiDb      = document.getElementById('kpiDb');
-    const kpiApi     = document.getElementById('kpiApi');
-    const dbStatus   = document.getElementById('dbStatus');
-    const apiStatus  = document.getElementById('apiStatus');
+    const kpiPoints = document.getElementById('kpiPoints');
+    const kpiJobs = document.getElementById('kpiJobs');
+    const kpiAccount = document.getElementById('kpiAccount');
+    const dbStatus = document.getElementById('dbStatus');
+    const apiStatus = document.getElementById('apiStatus');
     const flightIdEl = document.getElementById('flightId');
     const recentTable = document.getElementById('recentTable');
     const chartMeta = document.getElementById('chartMeta');
+    const jobsAvailable = document.getElementById('jobsAvailable');
+    const jobsAvailableEmpty = document.getElementById('jobsAvailableEmpty');
+    const jobsMine = document.getElementById('jobsMine');
+    const jobsMineEmpty = document.getElementById('jobsMineEmpty');
+    const jobsMeta = document.getElementById('jobsMeta');
+    const btnJobsGenerate = document.getElementById('btnJobsGenerate');
+    const btnJobsRefresh = document.getElementById('btnJobsRefresh');
+    const formCreateJob = document.getElementById('formCreateJob');
+    const jobTitle = document.getElementById('jobTitle');
+    const jobPayload = document.getElementById('jobPayload');
+    const jobWeight = document.getElementById('jobWeight');
+    const jobDeparture = document.getElementById('jobDeparture');
+    const jobArrival = document.getElementById('jobArrival');
+    const jobDeadline = document.getElementById('jobDeadline');
+    const jobNotes = document.getElementById('jobNotes');
+    const navAdmin = document.getElementById('navAdmin');
+    const adminStatus = document.getElementById('adminStatus');
+    const adminGate = document.getElementById('adminGate');
+    const adminContent = document.getElementById('adminContent');
+    const btnAdminRefresh = document.getElementById('btnAdminRefresh');
+    const btnAdminGenerate = document.getElementById('btnAdminGenerate');
+    const formAdminJob = document.getElementById('formAdminJob');
+    const adminJobTitle = document.getElementById('adminJobTitle');
+    const adminJobPayload = document.getElementById('adminJobPayload');
+    const adminJobWeight = document.getElementById('adminJobWeight');
+    const adminJobDeparture = document.getElementById('adminJobDeparture');
+    const adminJobArrival = document.getElementById('adminJobArrival');
+    const adminJobDeadline = document.getElementById('adminJobDeadline');
+    const adminJobNotes = document.getElementById('adminJobNotes');
+    const adminJobAssign = document.getElementById('adminJobAssign');
+    const adminJobsBody = document.getElementById('adminJobsBody');
+    const adminJobsEmpty = document.getElementById('adminJobsEmpty');
+    const adminUsersBody = document.getElementById('adminUsersBody');
+    const adminUsersEmpty = document.getElementById('adminUsersEmpty');
+    const pages = document.querySelectorAll('[data-page]');
+    const navLinks = document.querySelectorAll('[data-nav]');
+    const accountButton = document.getElementById('btnAccount');
+    const accountAvatar = document.getElementById('accountAvatar');
+    const accountLabel = document.getElementById('accountLabel');
+    const authSheet = document.getElementById('authSheet');
+    const btnAuthClose = document.getElementById('btnAuthClose');
+    const authTabs = document.querySelectorAll('.auth-tab');
+    const formLogin = document.getElementById('formLogin');
+    const formRegister = document.getElementById('formRegister');
+    const loginEmail = document.getElementById('loginEmail');
+    const loginPassword = document.getElementById('loginPassword');
+    const registerEmail = document.getElementById('registerEmail');
+    const registerPassword = document.getElementById('registerPassword');
+    const authError = document.getElementById('authError');
+    const authSuccess = document.getElementById('authSuccess');
+    const authAccountSummary = document.getElementById('authAccountSummary');
+    const summaryEmail = document.getElementById('summaryEmail');
+    const summaryCreated = document.getElementById('summaryCreated');
+    const btnLogout = document.getElementById('btnLogout');
+    const authTitle = document.getElementById('authTitle');
+    const authSubtitle = document.getElementById('authSubtitle');
 
-    function setBadge(el, text, cls){
+    let jobsLoaded = false;
+    let adminLoaded = false;
+
+    function setJobDeadlineDefault(input) {
+      if (!input) {
+        return;
+      }
+      const baseline = new Date(Date.now() + 2 * 60 * 60 * 1000);
+      const tzOffset = baseline.getTimezoneOffset() * 60000;
+      const local = new Date(baseline.getTime() - tzOffset);
+      input.value = local.toISOString().slice(0, 16);
+    }
+
+    setJobDeadlineDefault(jobDeadline);
+    setJobDeadlineDefault(adminJobDeadline);
+
+    [jobDeparture, jobArrival, adminJobDeparture, adminJobArrival].forEach((input) => {
+      if (!input) {
+        return;
+      }
+      input.addEventListener('blur', () => {
+        input.value = input.value.trim().toUpperCase();
+      });
+    });
+    let currentUser = null;
+
+    function setBadge(el, text, cls) {
       el.textContent = text;
       el.className = 'text-xs px-2 py-1 rounded-full border ' + (cls || 'border-white/10 text-slate-300');
     }
-    function fmtDate(n){ const d = new Date(n); return d.toLocaleString(); }
 
-    function saveRecent(fid, count){
+    function fmtDate(value) {
+      if (!value) return '—';
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return value;
+      return d.toLocaleString();
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => {
+        switch (char) {
+          case '&': return '&amp;';
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '"': return '&quot;';
+          case "'": return '&#39;';
+          default: return char;
+        }
+      });
+    }
+
+    function saveRecent(fid, count) {
       const rec = JSON.parse(ls.getItem('simunet_recent') || '[]');
       const now = Date.now();
-      const idx = rec.findIndex(r => r.flight_id === fid);
-      if(idx>=0){ rec[idx] = { flight_id: fid, points: count, used_at: now }; }
-      else { rec.unshift({ flight_id: fid, points: count, used_at: now }); }
-      ls.setItem('simunet_recent', JSON.stringify(rec.slice(0,25)));
+      const idx = rec.findIndex((r) => r.flight_id === fid);
+      if (idx >= 0) {
+        rec[idx] = { flight_id: fid, points: count, used_at: now };
+      } else {
+        rec.unshift({ flight_id: fid, points: count, used_at: now });
+      }
+      ls.setItem('simunet_recent', JSON.stringify(rec.slice(0, 25)));
       renderRecent();
     }
-    function renderRecent(){
+
+    function renderRecent() {
       const rec = JSON.parse(ls.getItem('simunet_recent') || '[]');
       recentTable.innerHTML = '';
-      rec.forEach(r => {
+      rec.forEach((r) => {
         const tr = document.createElement('tr');
-        tr.innerHTML = '<td class="py-2"><button class="underline hover:text-slate-200" data-fid="'+r.flight_id+'">'+r.flight_id+'</button></td>' +
-                       '<td class="py-2 text-slate-300">'+(r.points||0)+'</td>' +
-                       '<td class="py-2">'+fmtDate(r.used_at)+'</td>';
-        tr.querySelector('button').onclick = (e)=> { flightIdEl.value = e.target.dataset.fid; };
+        tr.innerHTML = '<td class="py-2"><button class="underline hover:text-slate-200" data-fid="' + r.flight_id + '">' + r.flight_id + '</button></td>' +
+          '<td class="py-2 text-slate-300">' + (r.points || 0) + '</td>' +
+          '<td class="py-2">' + fmtDate(r.used_at) + '</td>';
+        tr.querySelector('button').onclick = (e) => { flightIdEl.value = e.target.dataset.fid; };
         recentTable.appendChild(tr);
       });
       kpiFlights.textContent = rec.length;
     }
+
     renderRecent();
 
-    async function apiFetch(path, opts){
-      const api = apiInput.value.trim().replace(/\/$/, '');
-      const r = await fetch(api + path, opts);
-      if (!r.ok) throw new Error((await r.text()) || ('HTTP ' + r.status));
-      return r.json();
+    async function apiFetch(path, opts = {}) {
+      const response = await fetch(API_BASE + path, opts);
+      const text = await response.text();
+      let data = {};
+      if (text) {
+        try { data = JSON.parse(text); } catch (err) { data = text; }
+      }
+      if (!response.ok) {
+        if (data && typeof data === 'object' && data.detail) {
+          throw new Error(data.detail);
+        }
+        throw new Error(typeof data === 'string' ? data : ('HTTP ' + response.status));
+      }
+      if (typeof data === 'string' || data === null) {
+        return { ok: true, detail: data };
+      }
+      return data;
     }
 
-    document.getElementById('btnPing').addEventListener('click', async ()=>{
-      setBadge(apiStatus, 'checking...', 'border-white/10 text-slate-400');
-      try{
-        const s = await apiFetch('/status');
-        kpiDb.textContent = s.db ? 'online' : 'offline';
-        setBadge(dbStatus, s.db ? 'db: online' : 'db: offline', s.db ? 'border-emerald-400/40 text-emerald-300' : 'border-amber-400/40 text-amber-300');
-        setBadge(apiStatus, 'reachable', 'border-emerald-400/40 text-emerald-300');
-        kpiApi.textContent = 'reachable';
-        statusEl.textContent = 'OK';
-      }catch(e){
-        kpiDb.textContent = 'offline';
-        setBadge(dbStatus, 'db: error', 'border-rose-400/40 text-rose-300');
-        setBadge(apiStatus, 'unreachable', 'border-rose-400/40 text-rose-300');
-        kpiApi.textContent = 'unreachable';
-        statusEl.textContent = 'API not reachable.';
+    function setCurrentUser(user) {
+      currentUser = user || null;
+      if (currentUser) {
+        ls.setItem(USER_KEY, JSON.stringify(currentUser));
+      } else {
+      ls.removeItem(USER_KEY);
+    }
+    updateAccountUI();
+    updateAdminUI();
+    if (kpiAccount) {
+      const label = currentUser && currentUser.email ? currentUser.email : 'Guest';
+        kpiAccount.textContent = label;
+        if (kpiAccount.parentElement) {
+          kpiAccount.parentElement.setAttribute('title', label);
+        }
+      }
+      if (!currentUser && kpiJobs) {
+        kpiJobs.textContent = '0';
+      }
+      jobsLoaded = false;
+      loadJobs(false);
+    }
+
+    function loadStoredUser() {
+      let stored = null;
+      try {
+        stored = JSON.parse(ls.getItem(USER_KEY) || 'null');
+      } catch (err) {
+        console.warn('Unable to parse stored user', err);
+      }
+      if (stored && stored.email) {
+        setCurrentUser(stored);
+        return;
+      }
+      setCurrentUser(null);
+    }
+
+    function updateAccountUI() {
+      if (currentUser && currentUser.email) {
+        const initial = currentUser.email.charAt(0).toUpperCase();
+        accountAvatar.textContent = initial;
+        accountLabel.textContent = currentUser.email;
+        accountLabel.classList.remove('text-slate-300');
+        accountLabel.classList.add('text-slate-100');
+      } else {
+        accountAvatar.textContent = '?';
+        accountLabel.textContent = 'Sign in';
+        accountLabel.classList.add('text-slate-300');
+        accountLabel.classList.remove('text-slate-100');
+      }
+    }
+
+    function updateAdminUI() {
+      const isAdmin = Boolean(currentUser && currentUser.is_admin);
+      if (navAdmin) {
+        navAdmin.classList.toggle('hidden', !isAdmin);
+      }
+      if (btnAdminRefresh) {
+        btnAdminRefresh.classList.toggle('hidden', !isAdmin);
+      }
+      if (adminGate) {
+        adminGate.classList.toggle('hidden', isAdmin);
+      }
+      if (adminContent) {
+        adminContent.classList.toggle('hidden', !isAdmin);
+      }
+      if (!isAdmin) {
+        adminLoaded = false;
+        if (adminStatus) {
+          adminStatus.textContent = 'Sign in with an administrator account to continue.';
+        }
+      } else if (adminStatus && !adminLoaded) {
+        adminStatus.textContent = 'Admin tools ready. Refresh to load data.';
+      }
+    }
+
+    function toggleAuthSheet(show, defaultTab = 'login') {
+      authSheet.classList.toggle('hidden', !show);
+      if (show) {
+        document.body.classList.add('overflow-hidden');
+        switchAuthTab(defaultTab);
+        if (!currentUser) {
+          authTitle.textContent = defaultTab === 'register' ? 'Create your SimuNet account' : 'Welcome back';
+          authSubtitle.textContent = 'Access demo tools, seed jobs, and monitor telemetry.';
+        } else {
+          authTitle.textContent = 'Account';
+          authSubtitle.textContent = 'You are signed in with ' + currentUser.email + '.';
+        }
+      } else {
+        document.body.classList.remove('overflow-hidden');
+      }
+    }
+
+    function switchAuthTab(tab) {
+      authTabs.forEach((btn) => {
+        const active = btn.dataset.authTab === tab;
+        btn.classList.toggle('bg-white/10', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('bg-white/5', !active);
+        btn.classList.toggle('text-slate-300', !active);
+      });
+
+      const showForms = !currentUser;
+      formLogin.classList.toggle('hidden', tab !== 'login' || !showForms);
+      formRegister.classList.toggle('hidden', tab !== 'register' || !showForms);
+      authAccountSummary.classList.toggle('hidden', !!showForms || !currentUser);
+      btnLogout.classList.toggle('hidden', !currentUser);
+
+      if (currentUser) {
+        summaryEmail.textContent = currentUser.email;
+        summaryCreated.textContent = currentUser.created_at ? 'Joined ' + fmtDate(currentUser.created_at) : '';
+      }
+
+      authError.classList.add('hidden');
+      authSuccess.classList.add('hidden');
+    }
+
+    accountButton.addEventListener('click', () => {
+      toggleAuthSheet(true, currentUser ? 'login' : 'login');
+    });
+
+    btnAuthClose.addEventListener('click', () => toggleAuthSheet(false));
+
+    authTabs.forEach((btn) => {
+      btn.addEventListener('click', () => switchAuthTab(btn.dataset.authTab || 'login'));
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !authSheet.classList.contains('hidden')) {
+        toggleAuthSheet(false);
       }
     });
 
-    document.getElementById('btnCopy').addEventListener('click', async ()=>{
-      const fid = flightIdEl.value.trim(); if(!fid) return;
-      try{ await navigator.clipboard.writeText(fid);}catch{}
+    btnLogout.addEventListener('click', () => {
+      setCurrentUser(null);
+      toggleAuthSheet(false);
+      statusEl.textContent = 'Signed out.';
     });
 
-    document.getElementById('btnSeed').addEventListener('click', async ()=>{
+    async function handleAuthSubmit(type, email, password) {
+      if (!email || !password) {
+        authError.textContent = 'Email and password required.';
+        authError.classList.remove('hidden');
+        return;
+      }
+      authError.classList.add('hidden');
+      authSuccess.classList.add('hidden');
+      const path = type === 'register' ? '/auth/register' : '/auth/login';
+      try {
+        const res = await apiFetch(path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        if (res && res.user) {
+          setCurrentUser(res.user);
+          authSuccess.textContent = type === 'register' ? 'Account created! You are now signed in.' : 'Signed in successfully.';
+          authSuccess.classList.remove('hidden');
+          summaryEmail.textContent = res.user.email;
+          summaryCreated.textContent = res.user.created_at ? 'Joined ' + fmtDate(res.user.created_at) : '';
+          switchAuthTab('login');
+          toggleAuthSheet(false);
+          statusEl.textContent = `Signed in as ${res.user.email}.`;
+        }
+      } catch (err) {
+        authError.textContent = (err && err.message) ? err.message : 'Unable to complete request.';
+        authError.classList.remove('hidden');
+      }
+    }
+
+    formLogin.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      handleAuthSubmit('login', loginEmail.value.trim().toLowerCase(), loginPassword.value);
+    });
+
+    formRegister.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      handleAuthSubmit('register', registerEmail.value.trim().toLowerCase(), registerPassword.value);
+    });
+
+    async function checkStatus(updateMessage = true) {
+      setBadge(apiStatus, 'api: checking...', 'border-white/10 text-slate-400');
+      try {
+        const s = await apiFetch('/status');
+        setBadge(dbStatus, s.db ? 'db: online' : 'db: offline', s.db ? 'border-emerald-400/40 text-emerald-300' : 'border-amber-400/40 text-amber-300');
+        setBadge(apiStatus, 'api: reachable', 'border-emerald-400/40 text-emerald-300');
+        if (updateMessage) {
+          statusEl.textContent = 'API ready.';
+        }
+      } catch (e) {
+        console.error(e);
+        setBadge(dbStatus, 'db: error', 'border-rose-400/40 text-rose-300');
+        setBadge(apiStatus, 'api: unreachable', 'border-rose-400/40 text-rose-300');
+        if (updateMessage) {
+          statusEl.textContent = 'API not reachable.';
+        }
+      }
+    }
+
+    document.getElementById('btnCopy').addEventListener('click', async () => {
+      const fid = flightIdEl.value.trim();
+      if (!fid) return;
+      try {
+        await navigator.clipboard.writeText(fid);
+      } catch (err) {
+        console.warn('clipboard copy failed', err);
+      }
+    });
+
+    async function loadJobs(updateStatus = true) {
+      if (!jobsAvailable || !jobsAvailableEmpty || !jobsMine || !jobsMineEmpty) {
+        return;
+      }
+
+      const signedIn = Boolean(currentUser && currentUser.email);
+
+      if (jobsMeta) {
+        jobsMeta.textContent = 'Loading jobs…';
+      }
+
+      try {
+        const email = signedIn ? currentUser.email.toLowerCase() : null;
+        const path = email ? `/jobs?email=${encodeURIComponent(email)}` : '/jobs';
+        const res = await apiFetch(path);
+        const available = Array.isArray(res.available) ? res.available : Array.isArray(res.jobs) ? res.jobs : [];
+        const mine = signedIn ? (Array.isArray(res.mine) ? res.mine : []) : [];
+        renderJobs(available, mine);
+        jobsLoaded = true;
+        if (updateStatus) {
+          const parts = [`${available.length} available`];
+          if (signedIn) {
+            parts.push(`${mine.length} mine`);
+          }
+          statusEl.textContent = `Jobs refreshed (${parts.join(' • ')}).`;
+        }
+      } catch (err) {
+        console.error(err);
+        jobsLoaded = false;
+        if (jobsMeta) {
+          jobsMeta.textContent = 'Jobs unavailable';
+        }
+        if (jobsAvailable) {
+          jobsAvailable.innerHTML = '';
+        }
+        if (jobsMine) {
+          jobsMine.innerHTML = '';
+        }
+        if (jobsAvailableEmpty) {
+          jobsAvailableEmpty.textContent = 'Jobs unavailable.';
+          jobsAvailableEmpty.classList.remove('hidden');
+        }
+        if (jobsMineEmpty) {
+          jobsMineEmpty.textContent = signedIn ? 'Jobs unavailable.' : 'Sign in to track claimed jobs.';
+          jobsMineEmpty.classList.remove('hidden');
+        }
+        if (kpiJobs) {
+          kpiJobs.textContent = signedIn ? '0' : '0';
+        }
+        if (updateStatus) {
+          statusEl.textContent = err instanceof Error ? err.message : 'Unable to load jobs.';
+        }
+      }
+    }
+
+    async function loadAdminOverview(force = false) {
+      if (!currentUser || !currentUser.email || !currentUser.is_admin) {
+        return;
+      }
+      if (adminLoaded && !force) {
+        return;
+      }
+
+      if (adminStatus) {
+        adminStatus.textContent = 'Loading admin data…';
+      }
+
+      const actor = encodeURIComponent(currentUser.email.toLowerCase());
+      try {
+        const [jobsRes, usersRes] = await Promise.all([
+          apiFetch(`/admin/jobs?actor=${actor}`),
+          apiFetch(`/admin/users?actor=${actor}`),
+        ]);
+        const jobsList = jobsRes && Array.isArray(jobsRes.jobs) ? jobsRes.jobs : [];
+        const usersList = usersRes && Array.isArray(usersRes.users) ? usersRes.users : [];
+        renderAdminJobs(jobsList);
+        renderAdminUsers(usersList);
+        adminLoaded = true;
+        if (adminStatus) {
+          adminStatus.textContent = 'Admin data updated ' + new Date().toLocaleTimeString();
+        }
+      } catch (err) {
+        console.error(err);
+        adminLoaded = false;
+        if (adminStatus) {
+          adminStatus.textContent = err instanceof Error ? err.message : 'Unable to load admin data.';
+        }
+      }
+    }
+
+    function renderJobs(availableJobs, myJobs) {
+      const signedIn = Boolean(currentUser && currentUser.email);
+      renderJobCollection(jobsAvailable, jobsAvailableEmpty, availableJobs, { allowClaim: true, signedIn, mineList: false });
+      renderJobCollection(jobsMine, jobsMineEmpty, signedIn ? myJobs : [], { allowClaim: false, signedIn, mineList: true });
+
+      if (jobsMeta) {
+        const stamp = new Date().toLocaleTimeString();
+        const parts = [`${availableJobs.length} available`];
+        if (signedIn) {
+          parts.push(`${myJobs.length} mine`);
+        }
+        jobsMeta.textContent = `${parts.join(' • ')} • updated ${stamp}`;
+      }
+
+      if (kpiJobs) {
+        kpiJobs.textContent = signedIn ? String(myJobs.length) : '0';
+      }
+    }
+
+    function renderJobCollection(container, emptyEl, jobs, { allowClaim, signedIn, mineList }) {
+      if (!container || !emptyEl) {
+        return;
+      }
+
+      container.innerHTML = '';
+      const hasJobs = Array.isArray(jobs) && jobs.length > 0;
+
+      if (!hasJobs) {
+        if (mineList) {
+          emptyEl.textContent = signedIn ? 'You have not claimed any jobs yet.' : 'Sign in to track claimed jobs.';
+        } else {
+          emptyEl.textContent = 'No jobs available yet. Create one or ask SimuNet to auto-generate missions.';
+        }
+        emptyEl.classList.remove('hidden');
+        return;
+      }
+
+      emptyEl.classList.add('hidden');
+      jobs.forEach((job) => {
+        container.appendChild(buildJobCard(job, { allowClaim, signedIn }));
+      });
+    }
+
+    function renderAdminJobs(jobs) {
+      if (!adminJobsBody || !adminJobsEmpty) {
+        return;
+      }
+      adminJobsBody.innerHTML = '';
+      const list = Array.isArray(jobs) ? jobs : [];
+      if (!list.length) {
+        adminJobsEmpty.classList.remove('hidden');
+        return;
+      }
+      adminJobsEmpty.classList.add('hidden');
+      list.forEach((job) => {
+        const jobId = job && job.job_id ? String(job.job_id) : '';
+        const row = document.createElement('tr');
+        row.className = 'border-b border-white/5 last:border-0';
+        const title = escapeHtml(job && job.title ? job.title : (jobId || 'Mission'));
+        const creator = escapeHtml(job && job.created_by ? job.created_by : 'SimuNet Ops');
+        const assigned = job && job.assigned_to ? escapeHtml(job.assigned_to) : '—';
+        const deadlineText = job && job.deadline ? escapeHtml(fmtDate(job.deadline)) : '—';
+        row.innerHTML = `
+          <td class="py-2 font-medium text-slate-100">${title}</td>
+          <td class="py-2 text-slate-400">${creator}</td>
+          <td class="py-2 text-slate-400">${assigned}</td>
+          <td class="py-2 text-slate-400">${deadlineText}</td>
+          <td class="py-2 text-right">
+            <button class="px-2 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-xs text-red-200" type="button" data-action="delete">Delete</button>
+          </td>`;
+        const deleteBtn = row.querySelector('[data-action="delete"]');
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', () => handleAdminDeleteJob(jobId, job && job.title ? job.title : jobId));
+        }
+        adminJobsBody.appendChild(row);
+      });
+    }
+
+    function renderAdminUsers(users) {
+      if (!adminUsersBody || !adminUsersEmpty) {
+        return;
+      }
+      adminUsersBody.innerHTML = '';
+      const list = Array.isArray(users) ? users : [];
+      if (!list.length) {
+        adminUsersEmpty.classList.remove('hidden');
+        return;
+      }
+      adminUsersEmpty.classList.add('hidden');
+      list.forEach((user) => {
+        const email = user && user.email ? String(user.email) : '';
+        const isAdmin = Boolean(user && user.is_admin);
+        const createdText = user && user.created_at ? fmtDate(user.created_at) : '—';
+        const row = document.createElement('tr');
+        row.className = 'border-b border-white/5 last:border-0';
+        row.innerHTML = `
+          <td class="py-2 font-medium text-slate-100">${escapeHtml(email || '—')}</td>
+          <td class="py-2 text-slate-300">${isAdmin ? 'Admin' : 'User'}</td>
+          <td class="py-2 text-slate-400">${escapeHtml(createdText)}</td>
+          <td class="py-2">
+            <div class="flex flex-wrap justify-end gap-2">
+              <button class="px-2 py-1 rounded bg-white/10 hover:bg-white/15 text-xs" type="button" data-action="toggle">${isAdmin ? 'Revoke admin' : 'Make admin'}</button>
+              <button class="px-2 py-1 rounded bg-white/10 hover:bg-white/15 text-xs" type="button" data-action="reset">Reset password</button>
+              <button class="px-2 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-xs text-red-200" type="button" data-action="delete">Delete</button>
+            </div>
+          </td>`;
+        const toggleBtn = row.querySelector('[data-action="toggle"]');
+        if (toggleBtn) {
+          toggleBtn.addEventListener('click', () => handleAdminToggleUser(email, !isAdmin));
+        }
+        const resetBtn = row.querySelector('[data-action="reset"]');
+        if (resetBtn) {
+          resetBtn.addEventListener('click', () => handleAdminResetPassword(email));
+        }
+        const deleteBtn = row.querySelector('[data-action="delete"]');
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', () => handleAdminDeleteUser(email));
+        }
+        adminUsersBody.appendChild(row);
+      });
+    }
+
+    function buildJobCard(job, { allowClaim, signedIn }) {
+      const card = document.createElement('div');
+      card.className = 'border border-white/10 rounded-xl p-4 bg-[#0b1020]/60';
+
+      const title = escapeHtml(job.title || job.job_id || 'Flight job');
+      const platform = escapeHtml(job.platform || 'Microsoft Flight Simulator');
+      const payloadLabel = escapeHtml(job.payload || '—');
+      const departure = escapeHtml((job.departure_airport || '—').toString());
+      const arrival = escapeHtml((job.arrival_airport || '—').toString());
+      const statusLabel = escapeHtml(job.status || (job.assigned_to ? 'claimed' : 'open'));
+      const createdByRaw = job.created_by ? job.created_by.toString() : '';
+      const createdByLabel = createdByRaw && createdByRaw.toLowerCase() === 'ops@simunet.local' ? 'SimuNet Ops' : (createdByRaw || 'SimuNet Ops');
+      const createdBy = escapeHtml(createdByLabel);
+      const assignedTo = job.assigned_to ? escapeHtml(job.assigned_to) : '';
+      const deadlineText = job.deadline ? fmtDate(job.deadline) : 'No deadline';
+      const createdAtText = job.created_at ? fmtDate(job.created_at) : '—';
+      const notes = job.notes ? escapeHtml(job.notes).replace(/\n/g, '<br>') : '';
+      let weightText = '—';
+      if (typeof job.weight_lbs === 'number') {
+        weightText = `${Number(job.weight_lbs).toLocaleString(undefined, { maximumFractionDigits: 1 })} lbs`;
+      }
+
+      card.innerHTML = `
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="font-semibold text-slate-100">${title}</div>
+            <div class="text-xs uppercase tracking-wide text-indigo-300/70 mt-1">${platform}</div>
+          </div>
+          <div class="text-xs uppercase tracking-wide text-slate-400">${statusLabel}</div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-slate-300 mt-4">
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wide">Route</div>
+            <div class="font-medium text-slate-100">${departure} → ${arrival}</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wide">Deadline</div>
+            <div class="font-medium text-slate-100">${deadlineText}</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wide">Payload</div>
+            <div class="font-medium text-slate-100">${payloadLabel}</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wide">Weight</div>
+            <div class="font-medium text-slate-100">${weightText}</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wide">Created</div>
+            <div class="font-medium text-slate-100">${escapeHtml(createdAtText)}</div>
+          </div>
+        </div>
+      `;
+
+      if (notes) {
+        const notesEl = document.createElement('p');
+        notesEl.className = 'mt-3 text-xs text-slate-400 leading-relaxed';
+        notesEl.innerHTML = `<span class="uppercase tracking-wide text-slate-500 mr-2">Notes</span>${notes}`;
+        card.appendChild(notesEl);
+      }
+
+      const footer = document.createElement('div');
+      footer.className = 'mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 flex-wrap text-xs text-slate-400';
+      const createdEl = document.createElement('div');
+      createdEl.innerHTML = `Created by <span class="text-slate-200">${createdBy}</span>`;
+      footer.appendChild(createdEl);
+
+      if (assignedTo) {
+        const assignedEl = document.createElement('div');
+        assignedEl.innerHTML = `Assigned to <span class="text-slate-200">${assignedTo}</span>`;
+        footer.appendChild(assignedEl);
+      }
+
+      if (allowClaim) {
+        const claimBtn = document.createElement('button');
+        claimBtn.type = 'button';
+        if (signedIn) {
+          claimBtn.className = 'sm:ml-auto px-3 py-2 rounded-lg grad text-sm font-medium';
+          claimBtn.textContent = 'Claim job';
+          claimBtn.addEventListener('click', () => handleClaim(job.job_id));
+        } else {
+          claimBtn.className = 'sm:ml-auto px-3 py-2 rounded-lg bg-white/10 text-sm text-slate-300 cursor-not-allowed';
+          claimBtn.textContent = 'Sign in to claim';
+          claimBtn.disabled = true;
+        }
+        footer.appendChild(claimBtn);
+      }
+
+      card.appendChild(footer);
+      return card;
+    }
+
+    async function handleClaim(jobId) {
+      if (!jobId) {
+        return;
+      }
+      if (!currentUser || !currentUser.email) {
+        statusEl.textContent = 'Sign in to claim jobs.';
+        toggleAuthSheet(true, 'login');
+        return;
+      }
+      statusEl.textContent = 'Claiming job...';
+      try {
+        await apiFetch(`/jobs/${encodeURIComponent(jobId)}/claim`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: currentUser.email.toLowerCase() }),
+        });
+        await loadJobs(true);
+        statusEl.textContent = 'Job claimed.';
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err instanceof Error ? err.message : 'Unable to claim job.';
+      }
+    }
+
+    async function handleAdminDeleteJob(jobId, label) {
+      if (!jobId || !currentUser || !currentUser.email || !currentUser.is_admin) {
+        return;
+      }
+      const promptLabel = label ? `Delete job "${label}"?` : 'Delete this job?';
+      if (!window.confirm(promptLabel)) {
+        return;
+      }
+      const actor = encodeURIComponent(currentUser.email.toLowerCase());
+      try {
+        await apiFetch(`/admin/jobs/${encodeURIComponent(jobId)}?actor=${actor}`, { method: 'DELETE' });
+        if (adminStatus) {
+          adminStatus.textContent = 'Job removed.';
+        }
+        await Promise.all([loadAdminOverview(true), loadJobs(true)]);
+      } catch (err) {
+        console.error(err);
+        if (adminStatus) {
+          adminStatus.textContent = err instanceof Error ? err.message : 'Unable to remove job.';
+        }
+      }
+    }
+
+    async function handleAdminToggleUser(email, makeAdmin) {
+      if (!email || !currentUser || !currentUser.email || !currentUser.is_admin) {
+        return;
+      }
+      const actor = encodeURIComponent(currentUser.email.toLowerCase());
+      try {
+        const response = await apiFetch(`/admin/users/${encodeURIComponent(email)}?actor=${actor}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_admin: makeAdmin }),
+        });
+        if (adminStatus) {
+          adminStatus.textContent = makeAdmin
+            ? `Granted admin privileges to ${email}.`
+            : `Revoked admin privileges from ${email}.`;
+        }
+        if (response && response.user && currentUser.email && currentUser.email.toLowerCase() === email.toLowerCase()) {
+          setCurrentUser({ ...currentUser, ...response.user });
+        }
+        await loadAdminOverview(true);
+      } catch (err) {
+        console.error(err);
+        if (adminStatus) {
+          adminStatus.textContent = err instanceof Error ? err.message : 'Unable to update user.';
+        }
+      }
+    }
+
+    async function handleAdminResetPassword(email) {
+      if (!email || !currentUser || !currentUser.email || !currentUser.is_admin) {
+        return;
+      }
+      const nextPassword = window.prompt(`Enter a new password for ${email} (min. 8 characters)`);
+      if (nextPassword === null) {
+        return;
+      }
+      const trimmed = nextPassword.trim();
+      if (trimmed.length < 8) {
+        window.alert('Password must be at least 8 characters long.');
+        return;
+      }
+      const actor = encodeURIComponent(currentUser.email.toLowerCase());
+      try {
+        await apiFetch(`/admin/users/${encodeURIComponent(email)}?actor=${actor}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: trimmed }),
+        });
+        if (adminStatus) {
+          adminStatus.textContent = `Password reset for ${email}.`;
+        }
+      } catch (err) {
+        console.error(err);
+        if (adminStatus) {
+          adminStatus.textContent = err instanceof Error ? err.message : 'Unable to reset password.';
+        }
+      }
+    }
+
+    async function handleAdminDeleteUser(email) {
+      if (!email || !currentUser || !currentUser.email || !currentUser.is_admin) {
+        return;
+      }
+      if (!window.confirm(`Remove ${email}? Any claimed jobs will be released.`)) {
+        return;
+      }
+      const actor = encodeURIComponent(currentUser.email.toLowerCase());
+      try {
+        const response = await apiFetch(`/admin/users/${encodeURIComponent(email)}?actor=${actor}`, { method: 'DELETE' });
+        if (adminStatus) {
+          adminStatus.textContent = `Removed ${email}.`;
+        }
+        const lowerEmail = email.toLowerCase();
+        const removedSelf = (response && response.self) || (currentUser.email && currentUser.email.toLowerCase() === lowerEmail);
+        if (removedSelf) {
+          setCurrentUser(null);
+        } else {
+          await Promise.all([loadAdminOverview(true), loadJobs(true)]);
+        }
+      } catch (err) {
+        console.error(err);
+        if (adminStatus) {
+          adminStatus.textContent = err instanceof Error ? err.message : 'Unable to remove user.';
+        }
+      }
+    }
+
+    if (formCreateJob) {
+      formCreateJob.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!currentUser || !currentUser.email) {
+          statusEl.textContent = 'Sign in to publish jobs.';
+          toggleAuthSheet(true, 'login');
+          return;
+        }
+
+        const titleValue = jobTitle ? jobTitle.value.trim() : '';
+        const payloadValue = jobPayload ? jobPayload.value.trim() : '';
+        const departureValue = jobDeparture ? jobDeparture.value.trim().toUpperCase() : '';
+        const arrivalValue = jobArrival ? jobArrival.value.trim().toUpperCase() : '';
+        const deadlineValue = jobDeadline ? jobDeadline.value : '';
+        const notesValue = jobNotes ? jobNotes.value.trim() : '';
+
+        if (!titleValue || !payloadValue || !departureValue || !arrivalValue || !deadlineValue) {
+          statusEl.textContent = 'All required fields must be completed.';
+          return;
+        }
+
+        const deadlineDate = new Date(deadlineValue);
+        if (Number.isNaN(deadlineDate.getTime())) {
+          statusEl.textContent = 'Deadline must be a valid date/time.';
+          return;
+        }
+
+        let weightValue = null;
+        if (jobWeight && jobWeight.value.trim()) {
+          const parsed = Number(jobWeight.value);
+          if (!Number.isFinite(parsed) || parsed < 0) {
+            statusEl.textContent = 'Weight must be a positive number.';
+            return;
+          }
+          weightValue = parsed;
+        }
+
+        const payloadBody = {
+          title: titleValue,
+          platform: 'Microsoft Flight Simulator',
+          payload: payloadValue,
+          weight_lbs: weightValue,
+          departure_airport: departureValue,
+          arrival_airport: arrivalValue,
+          deadline: deadlineDate.toISOString(),
+          notes: notesValue || null,
+          created_by: currentUser.email.toLowerCase(),
+          legs: [{ seq: 1, mode: 'flight' }],
+        };
+
+        statusEl.textContent = 'Publishing job...';
+        try {
+          await apiFetch('/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payloadBody),
+          });
+          formCreateJob.reset();
+          if (jobDeparture) {
+            jobDeparture.value = departureValue;
+          }
+          if (jobArrival) {
+            jobArrival.value = arrivalValue;
+          }
+          if (jobWeight) {
+            jobWeight.value = weightValue !== null ? String(weightValue) : '';
+          }
+          setJobDeadlineDefault(jobDeadline);
+          await loadJobs(true);
+          statusEl.textContent = 'Job created.';
+        } catch (err) {
+          console.error(err);
+          statusEl.textContent = err instanceof Error ? err.message : 'Unable to create job.';
+        }
+      });
+    }
+
+    if (btnJobsGenerate) {
+      btnJobsGenerate.addEventListener('click', async () => {
+        if (btnJobsGenerate.disabled) {
+          return;
+        }
+        btnJobsGenerate.disabled = true;
+        btnJobsGenerate.classList.add('opacity-60', 'cursor-not-allowed');
+        statusEl.textContent = 'Requesting SimuNet missions…';
+        try {
+          const res = await apiFetch('/jobs/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ count: 3 }),
+          });
+          await loadJobs(false);
+          const created = res && typeof res === 'object' && res !== null
+            ? (Array.isArray(res.jobs) ? res.jobs.length : (typeof res.count === 'number' ? res.count : 0))
+            : 0;
+          if (created > 0) {
+            statusEl.textContent = `SimuNet generated ${created} new job${created === 1 ? '' : 's'}.`;
+          } else {
+            statusEl.textContent = 'SimuNet had no new missions ready.';
+          }
+        } catch (err) {
+          console.error(err);
+          statusEl.textContent = err instanceof Error ? err.message : 'Unable to request SimuNet missions.';
+        } finally {
+          btnJobsGenerate.disabled = false;
+          btnJobsGenerate.classList.remove('opacity-60', 'cursor-not-allowed');
+        }
+      });
+    }
+
+    if (formAdminJob) {
+      formAdminJob.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!currentUser || !currentUser.email || !currentUser.is_admin) {
+          if (adminStatus) {
+            adminStatus.textContent = 'Admin access required to publish missions.';
+          }
+          toggleAuthSheet(true, 'login');
+          return;
+        }
+
+        const titleValue = adminJobTitle ? adminJobTitle.value.trim() : '';
+        const payloadValue = adminJobPayload ? adminJobPayload.value.trim() : '';
+        const departureValue = adminJobDeparture ? adminJobDeparture.value.trim().toUpperCase() : '';
+        const arrivalValue = adminJobArrival ? adminJobArrival.value.trim().toUpperCase() : '';
+        const deadlineValue = adminJobDeadline ? adminJobDeadline.value : '';
+        const notesValue = adminJobNotes ? adminJobNotes.value.trim() : '';
+        const assignedValue = adminJobAssign ? adminJobAssign.value.trim().toLowerCase() : '';
+
+        if (!titleValue || !payloadValue || !departureValue || !arrivalValue || !deadlineValue) {
+          if (adminStatus) {
+            adminStatus.textContent = 'All required fields must be completed.';
+          }
+          return;
+        }
+
+        const deadlineDate = new Date(deadlineValue);
+        if (Number.isNaN(deadlineDate.getTime())) {
+          if (adminStatus) {
+            adminStatus.textContent = 'Deadline must be a valid date/time.';
+          }
+          return;
+        }
+
+        let weightValue = null;
+        if (adminJobWeight && adminJobWeight.value.trim()) {
+          const parsed = Number(adminJobWeight.value);
+          if (!Number.isFinite(parsed) || parsed < 0) {
+            if (adminStatus) {
+              adminStatus.textContent = 'Weight must be a positive number.';
+            }
+            return;
+          }
+          weightValue = parsed;
+        }
+
+        const payloadBody = {
+          title: titleValue,
+          platform: 'Microsoft Flight Simulator',
+          payload: payloadValue,
+          weight_lbs: weightValue,
+          departure_airport: departureValue,
+          arrival_airport: arrivalValue,
+          deadline: deadlineDate.toISOString(),
+          notes: notesValue || null,
+          created_by: currentUser.email.toLowerCase(),
+          assigned_to: assignedValue || null,
+          legs: [{ seq: 1, mode: 'flight' }],
+        };
+
+        if (adminStatus) {
+          adminStatus.textContent = 'Publishing mission…';
+        }
+
+        try {
+          await apiFetch('/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payloadBody),
+          });
+          formAdminJob.reset();
+          setJobDeadlineDefault(adminJobDeadline);
+          if (adminJobDeparture) {
+            adminJobDeparture.value = departureValue;
+          }
+          if (adminJobArrival) {
+            adminJobArrival.value = arrivalValue;
+          }
+          await Promise.all([loadJobs(false), loadAdminOverview(true)]);
+          if (adminStatus) {
+            adminStatus.textContent = 'Mission published.';
+          }
+        } catch (err) {
+          console.error(err);
+          if (adminStatus) {
+            adminStatus.textContent = err instanceof Error ? err.message : 'Unable to publish mission.';
+          }
+        }
+      });
+    }
+
+    if (btnAdminGenerate) {
+      btnAdminGenerate.addEventListener('click', async () => {
+        if (!currentUser || !currentUser.email || !currentUser.is_admin) {
+          if (adminStatus) {
+            adminStatus.textContent = 'Admin access required for auto-generation.';
+          }
+          toggleAuthSheet(true, 'login');
+          return;
+        }
+        if (btnAdminGenerate.disabled) {
+          return;
+        }
+        btnAdminGenerate.disabled = true;
+        btnAdminGenerate.classList.add('opacity-60', 'cursor-not-allowed');
+        if (adminStatus) {
+          adminStatus.textContent = 'Requesting SimuNet missions…';
+        }
+        try {
+          const res = await apiFetch('/jobs/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ count: 3 }),
+          });
+          await Promise.all([loadJobs(false), loadAdminOverview(true)]);
+          const created = res && typeof res === 'object' && res !== null
+            ? (Array.isArray(res.jobs) ? res.jobs.length : (typeof res.count === 'number' ? res.count : 0))
+            : 0;
+          if (adminStatus) {
+            adminStatus.textContent = created > 0
+              ? `SimuNet generated ${created} new mission${created === 1 ? '' : 's'}.`
+              : 'SimuNet had no new missions ready.';
+          }
+        } catch (err) {
+          console.error(err);
+          if (adminStatus) {
+            adminStatus.textContent = err instanceof Error ? err.message : 'Unable to request missions.';
+          }
+        } finally {
+          btnAdminGenerate.disabled = false;
+          btnAdminGenerate.classList.remove('opacity-60', 'cursor-not-allowed');
+        }
+      });
+    }
+
+    if (btnAdminRefresh) {
+      btnAdminRefresh.addEventListener('click', () => {
+        loadAdminOverview(true);
+      });
+    }
+
+    if (btnJobsRefresh) {
+      btnJobsRefresh.addEventListener('click', () => loadJobs(true));
+    }
+
+    document.getElementById('btnSeed').addEventListener('click', async () => {
+      if (!currentUser || !currentUser.email) {
+        statusEl.textContent = 'Sign in to create demo jobs.';
+        toggleAuthSheet(true, 'login');
+        return;
+      }
       statusEl.textContent = 'Seeding...';
-      try{
-        const seeded = await apiFetch('/dev/reseed', { method:'POST' });
-        const started = await apiFetch('/flights?assignment_id='+encodeURIComponent(seeded.job_id)+'&seq=1&mode=truck', { method:'POST' });
+      try {
+        const email = currentUser.email.toLowerCase();
+        const seeded = await apiFetch('/dev/reseed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        if (seeded && seeded.job_id) {
+          await loadJobs(false);
+        }
+        const started = await apiFetch(`/flights?assignment_id=${encodeURIComponent(seeded.job_id)}&seq=1&mode=flight`, { method: 'POST' });
         flightIdEl.value = started.flight_id;
         saveRecent(started.flight_id, 0);
-        statusEl.textContent = 'Created flight '+started.flight_id;
-      }catch(e){
-        console.error(e); statusEl.textContent = 'Seed/start failed.';
+        statusEl.textContent = 'Created flight ' + started.flight_id;
+      } catch (e) {
+        console.error(e);
+        statusEl.textContent = 'Seed/start failed.';
       }
     });
 
-    async function fetchTelemetry(fid){
-      const data = await apiFetch('/telemetry/'+encodeURIComponent(fid));
+    async function fetchTelemetry(fid) {
+      const data = await apiFetch('/telemetry/' + encodeURIComponent(fid));
       return data.points || [];
     }
-    function fitPath(points){
-      if(!points.length) return;
-      const latlngs = points.map(p => [p.lat, p.lon]);
-      map.fitBounds(L.latLngBounds(latlngs), { padding: [20,20] });
+
+    function fitPath(points) {
+      if (!points.length) return;
+      const latlngs = points.map((p) => [p.lat, p.lon]);
+      map.fitBounds(L.latLngBounds(latlngs), { padding: [20, 20] });
     }
-    function sleep(ms){ return new Promise(res=>setTimeout(res, ms)); }
+
+    function sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
 
     const ctx = document.getElementById('altChart');
-    let altChart = new Chart(ctx, {
+    const altChart = new Chart(ctx, {
       type: 'line',
-      data: { labels: [], datasets: [{ label: 'Altitude', data: [], tension: 0.3 }]},
-      options: { plugins:{ legend:{ labels:{ color:'#cbd5e1' } } }, scales:{ x:{ ticks:{ color:'#cbd5e1' }}, y:{ ticks:{ color:'#cbd5e1' }}} }
+      data: { labels: [], datasets: [{ label: 'Altitude', data: [], tension: 0.3 }] },
+      options: { plugins: { legend: { labels: { color: '#cbd5e1' } } }, scales: { x: { ticks: { color: '#cbd5e1' } }, y: { ticks: { color: '#cbd5e1' } } } }
     });
 
-    document.getElementById('btnLoad').addEventListener('click', async ()=>{
-      const fid = flightIdEl.value.trim(); if(!fid){ alert('Enter a flight_id.'); return; }
+    document.getElementById('btnLoad').addEventListener('click', async () => {
+      const fid = flightIdEl.value.trim();
+      if (!fid) {
+        alert('Enter a flight_id.');
+        return;
+      }
       statusEl.textContent = 'Loading telemetry...';
-      try{
+      try {
         const pts = await fetchTelemetry(fid);
         kpiPoints.textContent = pts.length;
         saveRecent(fid, pts.length);
-        if(!pts.length){ statusEl.textContent = 'No points yet. Add via Demo Stream or your connector.'; return; }
-        const latlngs = pts.map(p => [p.lat, p.lon]);
+        if (!pts.length) {
+          statusEl.textContent = 'No points yet. Add via Demo Stream or your connector.';
+          return;
+        }
+        const latlngs = pts.map((p) => [p.lat, p.lon]);
         pathLine.setLatLngs(latlngs);
-        marker.setLatLng(latlngs[latlngs.length-1]);
+        marker.setLatLng(latlngs[latlngs.length - 1]);
         fitPath(pts);
-        altChart.data.labels = pts.map(p => p.k);
-        altChart.data.datasets[0].data = pts.map(p => p.alt || 0);
+        altChart.data.labels = pts.map((p) => p.k);
+        altChart.data.datasets[0].data = pts.map((p) => p.alt || 0);
         altChart.update();
-        document.getElementById('chartMeta').textContent = pts.length+' points • last k='+pts[pts.length-1].k;
-        for(const p of pts){ marker.setLatLng([p.lat, p.lon]); await sleep(110); }
-        statusEl.textContent = 'Rendered '+pts.length+' points.';
-      }catch(e){ console.error(e); statusEl.textContent = 'Load failed.'; }
+        chartMeta.textContent = pts.length + ' points • last k=' + pts[pts.length - 1].k;
+        for (const p of pts) {
+          marker.setLatLng([p.lat, p.lon]);
+          await sleep(110);
+        }
+        statusEl.textContent = 'Rendered ' + pts.length + ' points.';
+      } catch (e) {
+        console.error(e);
+        statusEl.textContent = 'Load failed.';
+      }
     });
 
-    document.getElementById('btnDemo').addEventListener('click', async ()=>{
-      const fid = flightIdEl.value.trim(); if(!fid){ alert('Create or paste a flight_id first.'); return; }
+    document.getElementById('btnDemo').addEventListener('click', async () => {
+      const fid = flightIdEl.value.trim();
+      if (!fid) {
+        alert('Create or paste a flight_id first.');
+        return;
+      }
       statusEl.textContent = 'Streaming demo telemetry...';
-      try{
-        let lat=40.7, lon=-74.0, alt=50;
-        for(let k=0; k<80; k++){
+      try {
+        let lat = 40.7;
+        let lon = -74.0;
+        let alt = 50;
+        for (let k = 0; k < 80; k++) {
           const pt = { flight_id: fid, k, lat, lon, alt, ts: new Date().toISOString() };
-          await apiFetch('/telemetry', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(pt)});
-          lat += 0.002; lon += 0.004; alt += (k%12===0? 20: 0);
+          await apiFetch('/telemetry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pt) });
+          lat += 0.002;
+          lon += 0.004;
+          alt += (k % 12 === 0 ? 20 : 0);
           await sleep(110);
         }
         statusEl.textContent = 'Demo stream complete. Click "Load & Animate".';
-      }catch(e){ console.error(e); statusEl.textContent = 'Demo stream failed.'; }
+      } catch (e) {
+        console.error(e);
+        statusEl.textContent = 'Demo stream failed.';
+      }
     });
 
-    document.getElementById('btnPing').click();
+    function updateNav(targetPage) {
+      navLinks.forEach((link) => {
+        const active = link.dataset.nav === targetPage;
+        link.classList.toggle('bg-white/10', active);
+        link.classList.toggle('text-white', active);
+        link.classList.toggle('text-slate-300', !active);
+      });
+    }
+
+    function showPage(page, { updateHash = true } = {}) {
+      let target = null;
+      pages.forEach((section) => {
+        if (section.dataset.page === page && !target) {
+          target = section;
+        }
+      });
+      if (!target) {
+        target = pages[0];
+        page = target ? target.dataset.page : 'dashboard';
+      }
+      pages.forEach((section) => {
+        section.classList.toggle('hidden', section !== target);
+      });
+      updateNav(page);
+      if (page === 'jobs') {
+        loadJobs(!jobsLoaded);
+      }
+      if (page === 'admin') {
+        if (currentUser && currentUser.is_admin) {
+          loadAdminOverview(!adminLoaded);
+        } else if (adminStatus) {
+          adminStatus.textContent = 'Admin privileges required to view this page.';
+        }
+      }
+      if (updateHash && ('#' + page) !== location.hash) {
+        history.replaceState(null, '', '#' + page);
+      }
+    }
+
+    navLinks.forEach((link) => {
+      link.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const page = link.dataset.nav || 'dashboard';
+        showPage(page);
+      });
+    });
+
+    window.addEventListener('hashchange', () => {
+      const page = location.hash.replace('#', '') || 'dashboard';
+      showPage(page, { updateHash: false });
+    });
+
+    loadStoredUser();
+
+    const initialPage = location.hash.replace('#', '') || 'dashboard';
+    showPage(initialPage, { updateHash: false });
+
+    checkStatus();
+    setInterval(() => checkStatus(false), 45000);
   </script>
 </body>
 </html>
