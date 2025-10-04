@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     MetaData,
     UniqueConstraint,
+    Text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
@@ -58,6 +59,12 @@ class Job(Base):
         single_parent=True,
         uselist=False,
     )
+    detail: Mapped[Optional["JobDetail"]] = relationship(
+        back_populates="job",
+        cascade="all, delete-orphan",
+        single_parent=True,
+        uselist=False,
+    )
 
 class Leg(Base):
     __tablename__ = "legs"
@@ -73,6 +80,25 @@ class JobOwner(Base):
     job_id: Mapped[str] = mapped_column(String(64), ForeignKey("jobs.job_id"), primary_key=True)
     email: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     job: Mapped["Job"] = relationship(back_populates="owner", uselist=False)
+
+
+class JobDetail(Base):
+    __tablename__ = "job_details"
+
+    job_id: Mapped[str] = mapped_column(String(64), ForeignKey("jobs.job_id"), primary_key=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    platform: Mapped[str] = mapped_column(String(128), nullable=False, default="Microsoft Flight Simulator")
+    payload: Mapped[str] = mapped_column(String(255), nullable=False)
+    weight_lbs: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    departure_airport: Mapped[str] = mapped_column(String(16), nullable=False)
+    arrival_airport: Mapped[str] = mapped_column(String(16), nullable=False)
+    deadline: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True, default=datetime.utcnow)
+    assigned_to: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    job: Mapped["Job"] = relationship(back_populates="detail", uselist=False)
 
 
 class Flight(Base):
