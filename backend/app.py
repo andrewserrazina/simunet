@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 import uuid
+import hashlib
+import secrets
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,7 +16,7 @@ from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, EmailStr
 
 try:  # pragma: no cover - optional when running without SQLAlchemy
     from sqlalchemy.orm import joinedload
@@ -64,9 +66,9 @@ def _load_state() -> dict[str, Any]:
         with STATE_PATH.open("r", encoding="utf-8") as fh:
             return json.load(fh)
     except FileNotFoundError:
-        return {"jobs": {}, "flights": {}, "telemetry": {}}
+        return {"users": {}, "jobs": {}, "flights": {}, "telemetry": {}}
     except json.JSONDecodeError:
-        return {"jobs": {}, "flights": {}, "telemetry": {}}
+        return {"users": {}, "jobs": {}, "flights": {}, "telemetry": {}}
 
 
 def _save_state(state: dict[str, Any]) -> None:
@@ -75,6 +77,34 @@ def _save_state(state: dict[str, Any]) -> None:
     with tmp_path.open("w", encoding="utf-8") as fh:
         json.dump(state, fh, indent=2, sort_keys=True)
     tmp_path.replace(STATE_PATH)
+
+
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def _hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    iterations = 120_000
+    derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
+    return f"pbkdf2_sha256${iterations}${salt.hex()}${derived.hex()}"
+
+
+def _verify_password(password: str, stored: str) -> bool:
+    try:
+        algorithm, iteration_str, salt_hex, hash_hex = stored.split("$", 3)
+    except ValueError:
+        return False
+    if algorithm != "pbkdf2_sha256":
+        return False
+    try:
+        iterations = int(iteration_str)
+        salt = bytes.fromhex(salt_hex)
+        expected = bytes.fromhex(hash_hex)
+    except (ValueError, TypeError):
+        return False
+    candidate = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
+    return secrets.compare_digest(candidate, expected)
 
 
 @contextmanager
@@ -136,6 +166,21 @@ def _serialize_job(job: Any) -> dict[str, Any]:
     }
 
 
+def _serialize_user(user: Any) -> dict[str, Any]:
+    if isinstance(user, dict):
+        return {
+            "id": user.get("id"),
+            "email": user.get("email"),
+            "created_at": user.get("created_at"),
+        }
+
+    return {
+        "id": getattr(user, "id", None),
+        "email": getattr(user, "email", None),
+        "created_at": _isoformat(getattr(user, "created_at", None)),
+    }
+
+
 class TelemetryPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -145,6 +190,13 @@ class TelemetryPayload(BaseModel):
     lon: float
     alt: float = 0.0
     ts: datetime | None = None
+
+
+class AuthPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+    password: str = Field(..., min_length=8)
 
 
 FRONTEND_DIR = os.getenv(
@@ -161,6 +213,64 @@ if os.path.isdir(assets_dir):
 def get_status() -> dict[str, object]:
     """Simple health endpoint used by the frontend and smoke tests."""
     return {"ok": True, "db": DB_AVAILABLE, "error": DB_ERROR}
+
+
+@app.post("/auth/register", status_code=status.HTTP_201_CREATED)
+def register(payload: AuthPayload) -> dict[str, Any]:
+    email = _normalize_email(payload.email)
+    password = payload.password
+
+    if USE_DB:
+        with _session() as session:
+            existing = session.query(db_module.User).filter_by(email=email).one_or_none()
+            if existing:
+                raise HTTPException(status_code=409, detail="Email already registered")
+            user = db_module.User(
+                email=email,
+                hashed_password=_hash_password(password),
+                created_at=datetime.utcnow(),
+            )
+            session.add(user)
+            session.flush()
+            return {"ok": True, "user": _serialize_user(user)}
+
+    state = _load_state()
+    users = state.setdefault("users", {})
+    if email in users:
+        raise HTTPException(status_code=409, detail="Email already registered")
+    created_at = _now_iso()
+    user_id = uuid.uuid4().hex[:12]
+    users[email] = {
+        "id": user_id,
+        "email": email,
+        "hashed_password": _hash_password(password),
+        "created_at": created_at,
+    }
+    _save_state(state)
+    return {"ok": True, "user": _serialize_user(users[email])}
+
+
+@app.post("/auth/login")
+def login(payload: AuthPayload) -> dict[str, Any]:
+    email = _normalize_email(payload.email)
+    password = payload.password
+
+    if USE_DB:
+        with _session() as session:
+            user = session.query(db_module.User).filter_by(email=email).one_or_none()
+            if user is None or not _verify_password(password, user.hashed_password):
+                raise HTTPException(status_code=401, detail="Invalid credentials")
+            if getattr(user, "created_at", None) is None:
+                user.created_at = datetime.utcnow()
+                session.flush()
+            return {"ok": True, "user": _serialize_user(user)}
+
+    state = _load_state()
+    users = state.setdefault("users", {})
+    stored = users.get(email)
+    if not stored or not _verify_password(password, stored.get("hashed_password", "")):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    return {"ok": True, "user": _serialize_user(stored)}
 
 
 @app.post("/dev/reseed", status_code=status.HTTP_201_CREATED)
@@ -188,6 +298,7 @@ def reseed() -> dict[str, Any]:
             session.flush()
     else:
         state = _load_state()
+        state.setdefault("users", {})
         state.setdefault("jobs", {})[job_id] = {
             "job_id": job_id,
             "legs": legs,
